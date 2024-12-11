@@ -18,3 +18,9 @@ Postoad uses an app password provided by Bluesky, which restricts the ability to
 * Only your server ID, required channel IDs, authorized user IDs, and encrypted passwords are saved to the database — nothing else.
 * If a server administrator forgets their 2FA method, they can only reset the account by deleting the app password and adding it back to the bot. This protects your social accounts from unauthorized Discord server administrators.
 * By default, only server administrators can modify bot settings. Permissions can be changed in the bot's settings.
+
+## Add Postoad to your server
+### Da Dragon Den-managed Postoad
+You can add our free instance of Postoad to your server through [our official website](https://postoad.beastslash.com). We try to keep it online as much as possible, but we provide no guarantee on uptime or service availability.
+
+### Self-managed Postoad
