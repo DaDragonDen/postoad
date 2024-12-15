@@ -1,0 +1,25 @@
+{
+  "name": "postoad",
+  "version": "1.0.0",
+  "description": "A tool that lets Discord server admins easily post to Bluesky without sharing the account password.",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsc && node --env-file=.env dist/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DaDragonDen/postoad.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/DaDragonDen/postoad/issues"
+  },
+  "homepage": "https://github.com/DaDragonDen/postoad#readme",
+  "dependencies": {
+    "oceanic.js": "^1.11.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2"
+  }
+}
