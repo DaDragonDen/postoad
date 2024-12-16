@@ -1,23 +1,26 @@
 import { NodeOAuthClient } from "@atproto/oauth-client-node";
-const client = new NodeOAuthClient({
-    clientMetadata: {
-        client_id: "https://postoad.beastslash.com/client-metadata.json",
-        client_name: "Postoad",
-        client_uri: "https://postoad.beastslash.com",
-        redirect_uris: ["https://postoad.beastslash.com/callback"],
-        grant_types: ["authorization_code", "refresh_token"],
-        tos_uri: "https://postoad.beastslash.com/terms",
-        policy_uri: "https://postoad.beastslash.com/privacy",
-        response_types: ["code"],
-        application_type: "native",
-        scope: "atproto",
-        token_endpoint_auth_method: "none"
-    },
-    // keyset: await Promise.all([
-    //   JoseKey.fromImportable(process.env.PRIVATE_KEY_1),
-    //   JoseKey.fromImportable(process.env.PRIVATE_KEY_2),
-    //   JoseKey.fromImportable(process.env.PRIVATE_KEY_3),
-    // ]),
+import { JoseKey } from "@atproto/jwk-jose";
+// Need some keys? Use this for easy access: 
+// console.log(JSON.stringify((await JoseKey.fromKeyLike((await JoseKey.generateKeyPair()).privateKey))))
+// console.log(JSON.stringify((await JoseKey.fromKeyLike((await JoseKey.generateKeyPair()).privateKey))))
+// console.log(JSON.stringify((await JoseKey.fromKeyLike((await JoseKey.generateKeyPair()).privateKey))))
+if (!process.env.BLUESKY_PRIVATE_KEY_1)
+    throw new Error("BLUESKY_PRIVATE_KEY_1 environment variable required.");
+if (!process.env.BLUESKY_PRIVATE_KEY_2)
+    throw new Error("BLUESKY_PRIVATE_KEY_2 environment variable required.");
+if (!process.env.BLUESKY_PRIVATE_KEY_3)
+    throw new Error("BLUESKY_PRIVATE_KEY_3 environment variable required.");
+// Uncomment this to get the public keys of the private keys.
+// console.log(JSON.stringify((await JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_1)).publicJwk, null, 2));
+// console.log(JSON.stringify((await JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_2)).publicJwk, null, 2));
+// console.log(JSON.stringify((await JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_3)).publicJwk, null, 2));
+const client = await NodeOAuthClient.fromClientId({
+    clientId: "https://postoad.beastslash.com/client-metadata.json",
+    keyset: await Promise.all([
+        JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_1, "BLUESKY_KEY_1"),
+        JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_2, "BLUESKY_KEY_2"),
+        JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_3, "BLUESKY_KEY_3"),
+    ]),
     sessionStore: {
         get: async (key, options) => {
             return undefined;
