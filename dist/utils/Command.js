@@ -24,9 +24,23 @@ export default class Command {
         this.options = properties.options;
         this.action = properties.action;
     }
-    static get(name, options) {
-        const subCommandGroup = options;
-        return undefined;
+    static async getFromInteraction(interaction) {
+        // Get the base commmand.
+        const baseCommandName = interaction.data.name;
+        const command = (await import(`../commands/${baseCommandName}.js`)).default;
+        if (!(command instanceof Command)) {
+            throw new Error(`${baseCommandName}.js did not return a Command.`);
+        }
+        // Return the sub-command if there is one. 
+        const subCommandArray = interaction.data.options.getSubCommand();
+        if (subCommandArray?.[0]) {
+            const subCommand = command.subCommands?.find((subCommand) => subCommand.name === subCommandArray[0]);
+            if (!subCommand) {
+                throw new Error(`${subCommandArray[0]} is not a valid sub-command of ${command.name}.`);
+            }
+            return subCommand;
+        }
+        return command;
     }
     static async updateCommands(client) {
         const fileNames = fs.readdirSync(path.join(dirname(fileURLToPath(import.meta.url)), "..", "commands"));

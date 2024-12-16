@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionsWithValue, ApplicationCommandOptionTypes, ApplicationCommandTypes, Client, CommandInteraction, CreateChatInputApplicationCommandOptions, InteractionOptions } from "oceanic.js";
+import { ApplicationCommandOptionsWithValue, ApplicationCommandOptionTypes, ApplicationCommandTypes, Client, CommandInteraction, CreateChatInputApplicationCommandOptions, InteractionOptions, InteractionOptionsWrapper } from "oceanic.js";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -47,11 +47,35 @@ export default class Command {
 
   }
 
-  static get(name: string, options: InteractionOptions[]): Command {
+  static async getFromInteraction(interaction: CommandInteraction): Promise<Command> {
 
-    const subCommandGroup = options
+    // Get the base commmand.
+    const baseCommandName = interaction.data.name;
+    const command = (await import(`../commands/${baseCommandName}.js`)).default;
 
-    return undefined as unknown as Command;
+    if (!(command instanceof Command)) {
+
+      throw new Error(`${baseCommandName}.js did not return a Command.`);
+
+    }
+
+    // Return the sub-command if there is one. 
+    const subCommandArray = interaction.data.options.getSubCommand();
+    if (subCommandArray?.[0]) {
+
+      const subCommand = command.subCommands?.find((subCommand) => subCommand.name === subCommandArray[0]);
+
+      if (!subCommand) {
+
+        throw new Error(`${subCommandArray[0]} is not a valid sub-command of ${command.name}.`);
+
+      }
+
+      return subCommand;
+
+    }
+
+    return command;
 
   }
   
