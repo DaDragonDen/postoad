@@ -6,7 +6,7 @@ const app = express();
 app.post("/callback", async (request, response) => {
 
   // Ensure that there's a code.
-  const {code, state} = request.query;
+  const {code, state, iss} = request.query;
   if (typeof(code) !== "string") {
 
     response.status(400).json({
@@ -27,9 +27,20 @@ app.post("/callback", async (request, response) => {
     return;
 
   }
+  
+  if (typeof(iss) !== "string") {
+
+    response.status(400).json({
+      message: "A valid issuer is required."
+    });
+    
+    return;
+
+  }
 
   // Verify that Postoad has access to the account.
   const urlSearchParams = new URLSearchParams();
+  urlSearchParams.set("iss", iss);
   urlSearchParams.set("code", code);
   urlSearchParams.set("state", state as string);
 

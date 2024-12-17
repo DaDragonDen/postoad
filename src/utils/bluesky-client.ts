@@ -40,11 +40,9 @@ const client = await NodeOAuthClient.fromClientId({
   },
   stateStore: {
     get: async (key) => {
-      console.log(stateStore[key]);
       return stateStore[key];
     },
     set: async (key, state) => {
-      console.log("state set!")
       stateStore[key] = state;
     },
     del: async (key) => {
