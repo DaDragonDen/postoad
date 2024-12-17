@@ -84,6 +84,8 @@ const client = await NodeOAuthClient.fromClientId({
           encryptedSession: encryptedSessionBase64,
           keyID
         }
+      }, {
+        upsert: true
       });
 
     },
