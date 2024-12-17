@@ -1,7 +1,8 @@
 import Command from "#utils/Command.js"
 import { Agent } from "@atproto/api";
 import { ComponentTypes } from "oceanic.js";
-import database from "#utils/mongodb-database";
+import database from "#utils/mongodb-database.js";
+import blueskyClient from "#utils/bluesky-client.js";
 
 const command = new Command({
   name: "post",
@@ -17,14 +18,15 @@ const command = new Command({
     }
 
     const guildData = await database.collection("guilds").findOne({guildID});
-    const handles = [];
-    for (const sub of guildData.subs) {
+    const handlePairs = [];
+    for (const sub of guildData?.subs ?? []) {
 
-      
+      const handle = await blueskyClient.didResolver.resolve(sub);
+      handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
 
     }
 
-    if (!accountData[0]) {
+    if (!handlePairs[0]) {
 
       throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.")
 
@@ -40,15 +42,11 @@ const command = new Command({
             {
               type: ComponentTypes.STRING_SELECT,
               customID: "accountSelector",
-              options: handles.map((handle) => {
-
-                return {
-                  label: handle,
-                  value: handle,
-                  des
-                }
-
-              })
+              options: handlePairs.map(([handle, sub]) => ({
+                label: handle,
+                value: handle,
+                description: sub
+              }))
             }
           ]
         }

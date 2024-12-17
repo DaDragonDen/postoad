@@ -1,6 +1,6 @@
 import express from "express";
 import blueskyClient from "#utils/bluesky-client.js";
-import database from "#utils/mongodb-database";
+import database from "#utils/mongodb-database.js";
 
 const app = express();
 
@@ -55,6 +55,8 @@ app.post("/callback", async (request, response) => {
     $addToSet: {
       subs: sub
     }
+  }, {
+    upsert: true
   })
 
   // Add the session data to the database.
