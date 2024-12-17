@@ -17,7 +17,7 @@ const command = new Command({
     }
 
     const guildData = await database.collection("guilds").findOne({guildID});
-    const handle = [];
+    const handles = [];
     for (const sub of guildData.subs) {
 
       
@@ -40,9 +40,15 @@ const command = new Command({
             {
               type: ComponentTypes.STRING_SELECT,
               customID: "accountSelector",
-              options: [
+              options: handles.map((handle) => {
 
-              ]
+                return {
+                  label: handle,
+                  value: handle,
+                  des
+                }
+
+              })
             }
           ]
         }
