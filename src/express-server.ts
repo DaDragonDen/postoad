@@ -55,6 +55,8 @@ app.post("/callback", async (request, response) => {
     $addToSet: {
       subs: sub
     }
+  }, {
+    upsert: true
   })
 
   // Add the session data to the database.
