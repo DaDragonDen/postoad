@@ -1,6 +1,6 @@
 import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
-import { ApplicationCommandOptionTypes } from "oceanic.js";
+import { ApplicationCommandOptionTypes, CommandInteraction, ComponentInteraction } from "oceanic.js";
 
 const command = new Command({
   name: "authorize",
@@ -14,6 +14,12 @@ const command = new Command({
     }
   ],
   action: async (interaction) => {
+
+    if (!(interaction instanceof CommandInteraction)) {
+
+      throw new Error("Something bad happened on our end. Try again later.");
+
+    }
 
     // Verify the guild.
     const {guildID} = interaction;

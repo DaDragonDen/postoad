@@ -18,17 +18,41 @@ client.on("ready", async () => {
 
 client.on("interactionCreate", async (interaction) => {
 
-  if (interaction.type === InteractionTypes.APPLICATION_COMMAND) {
+  switch (interaction.type) {
 
-    try {
+    case InteractionTypes.APPLICATION_COMMAND:
 
-      // Check if the command exists.
-      const command = await Command.getFromInteraction(interaction);
-      await command.execute(interaction);
+      try {
 
-    } catch (error: unknown) {
+        // Check if the command exists.
+        const command = await Command.getFromCommandInteraction(interaction);
+        await command.execute(interaction);
 
-    }
+      } catch (error: unknown) {
+
+      }
+
+      break;
+
+    case InteractionTypes.MODAL_SUBMIT:
+    case InteractionTypes.MESSAGE_COMPONENT:
+      
+      try {
+
+        // Check if the command exists.
+        const command = await Command.getFromComponentInteraction(interaction);
+        await command.execute(interaction);
+
+      } catch (error: unknown) {
+
+
+
+      }
+
+      break;
+
+    default:
+      break;
 
   }
   

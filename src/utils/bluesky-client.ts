@@ -93,6 +93,19 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
 
       // Delete the session based on the sub.
       await database.collection("sessions").deleteOne({sub});
+      await database.collection<{
+        subs: string[]
+      }>("guilds").updateMany({
+        subs: {
+          $in: [sub]
+        }
+      }, {
+        $pull: {
+          subs: {
+            $in: [sub]
+          }
+        }
+      });
 
     }
   },
