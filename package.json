@@ -21,6 +21,7 @@
     "@atproto/api": "^0.13.20",
     "@atproto/oauth-client-node": "^0.2.4",
     "express": "^4.21.2",
+    "mongodb": "^6.12.0",
     "oceanic.js": "^1.11.2"
   },
   "imports": {

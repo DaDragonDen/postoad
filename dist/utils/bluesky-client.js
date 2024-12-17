@@ -14,6 +14,7 @@ if (!process.env.BLUESKY_PRIVATE_KEY_3)
 // console.log(JSON.stringify((await JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_1)).publicJwk, null, 2));
 // console.log(JSON.stringify((await JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_2)).publicJwk, null, 2));
 // console.log(JSON.stringify((await JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_3)).publicJwk, null, 2));
+const stateStore = {};
 const client = await NodeOAuthClient.fromClientId({
     clientId: "https://postoad.beastslash.com/client-metadata.json",
     keyset: await Promise.all([
@@ -24,23 +25,25 @@ const client = await NodeOAuthClient.fromClientId({
     sessionStore: {
         get: async (sub, session) => {
             console.log(`Get ${sub}`);
+            console.log(session);
             return undefined;
         },
-        set: async (key, options) => {
+        set: async (sub, session) => {
+            console.log(`Attempt to save ${sub}`);
+            console.log(session);
         },
-        del: async (key) => {
+        del: async (sub) => {
+            console.log(sub);
         }
     },
     stateStore: {
-        get: async (key, options) => {
-            console.log(key);
-            return undefined;
+        get: async (key) => {
+            console.log(stateStore[key]);
+            return stateStore[key];
         },
-        set: async (key, options) => {
+        set: async (key, state) => {
             console.log("state set!");
-            console.log(key);
-            console.log(options);
-            console.log(1);
+            stateStore[key] = state;
         },
         del: async (key) => {
         }
