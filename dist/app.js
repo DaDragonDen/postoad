@@ -1,19 +1,25 @@
-"use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const oceanic_js_1 = require("oceanic.js");
-const client = new oceanic_js_1.Client({
+import Command from "#utils/Command.js";
+import { Client, InteractionTypes } from "oceanic.js";
+import "./express-server.js";
+// Sign into Discord.
+const client = new Client({
     auth: `Bot ${process.env.DISCORD_TOKEN}`
 });
-client.on("ready", () => __awaiter(void 0, void 0, void 0, function* () {
+client.on("ready", async () => {
     console.log(`[Discord] Signed in as ${client.user.tag} (${client.user.id}).`);
-}));
+    // Update the commands that are different from Discord's server.
+    await Command.updateCommands(client);
+});
+client.on("interactionCreate", async (interaction) => {
+    if (interaction.type === InteractionTypes.APPLICATION_COMMAND) {
+        try {
+            // Check if the command exists.
+            const command = await Command.getFromInteraction(interaction);
+            await command.execute(interaction);
+        }
+        catch (error) {
+        }
+    }
+});
 client.connect();
+//# sourceMappingURL=app.js.map

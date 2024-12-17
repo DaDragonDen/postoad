@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsc && node --env-file=.env dist/app.js"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/DaDragonDen/postoad.git"
@@ -17,9 +18,16 @@
   },
   "homepage": "https://github.com/DaDragonDen/postoad#readme",
   "dependencies": {
+    "@atproto/api": "^0.13.20",
+    "@atproto/oauth-client-node": "^0.2.4",
+    "express": "^4.21.2",
     "oceanic.js": "^1.11.2"
   },
+  "imports": {
+    "#utils/*": "./dist/utils/*"
+  },
   "devDependencies": {
+    "@types/express": "^5.0.0",
     "@types/node": "^22.10.2"
   }
 }
