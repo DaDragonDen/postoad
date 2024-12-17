@@ -2,6 +2,7 @@ import { NodeOAuthClient, NodeSavedState } from "@atproto/oauth-client-node";
 import { JoseKey } from "@atproto/jwk-jose";
 import database from "./mongodb-database.js";
 import { jwtDecrypt, EncryptJWT, importJWK } from "jose";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 
 // Need some keys? Use this for easy access: 
 // console.log(JSON.stringify((await JoseKey.fromKeyLike((await JoseKey.generateKeyPair()).privateKey))))
@@ -26,39 +27,71 @@ const client = await NodeOAuthClient.fromClientId({
     JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_3, "BLUESKY_KEY_3"),
   ]),
   sessionStore: {
-    get: async (sub, session) => {
-      
+    get: async (sub) => {
+
       // Get the stored session.
       const collection = database.collection("sessions");
-      const storedSession = await collection.findOne({sub});
-      if (!storedSession) return undefined;
+      const sessionData = await collection.findOne({sub});
+      if (!sessionData) return undefined;
 
-      // Decrypt the access and refresh token.
-      
+      // Decrypt the session.
+      const key = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+      if (!key) return undefined;
+
+      const keyHash = createHash("sha256").update(key).digest();
+      const buffer = Buffer.from(sessionData.encryptedSession, "base64");
+      const iv = buffer.subarray(0, 16);
+      const encryptedText = buffer.subarray(16).toString("hex");
+      const decipher = createDecipheriv("aes-256-cbc", keyHash, iv);
+      let decryptedText = decipher.update(encryptedText, "hex", "utf-8");
+      decryptedText += decipher.final("utf-8");
+
+      // Turn the session back into an object.
+      const session = JSON.parse(decryptedText);
 
       // Return the decrypted session.
+      return session;
 
     },
     set: async (sub, session) => {
       
-      const encrypted = await new EncryptJWT({
-        scope: session.tokenSet.scope,
-        refresh_token: session.tokenSet.refresh_token,
-        access_token: session.tokenSet.access_token,
-        token_type: session.tokenSet.token_type,
-        expires_at: session.tokenSet.expires_at
-      })
-        .setProtectedHeader({ alg: 'dir', enc: 'A128CBC-HS256' })
-        .setAudience(session.tokenSet.aud)
-        .setSubject(session.tokenSet.sub)
-        .setIssuer(session.tokenSet.iss)
-        .encrypt(await importJWK(session.dpopJwk));
+      // Turn the session info into a string.
+      const sessionJSON = JSON.stringify(session);
 
-      console.log(encrypted);
+      // Select a random key for encryption.
+      let key;
+      let keyID;
+      while (!key) {
+
+        keyID = Math.floor(Math.random() * 3) + 1;
+        key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`];
+
+      }
+      
+      // Encrypt the session using the key.
+      const keyHash = createHash("sha256").update(key).digest();
+      const iv = randomBytes(16);
+      const cipher = createCipheriv("aes-256-cbc", keyHash, iv);
+      let encryptedSession = cipher.update(sessionJSON, "utf-8", "hex");
+      encryptedSession += cipher.final("hex");
+      const encryptedSessionBase64 = Buffer.concat([iv, Buffer.from(encryptedSession, "hex")]).toString("base64");
+
+      // Save the session to the database.
+      await database.collection("sessions").updateOne({
+        sub
+      }, {
+        $set: {
+          encryptedSession: encryptedSessionBase64,
+          keyID
+        }
+      });
 
     },
     del: async (sub) => {
-      console.log(sub)
+
+      // Delete the session based on the sub.
+      await database.collection("sessions").deleteOne({sub});
+
     }
   },
   stateStore: {
@@ -69,7 +102,7 @@ const client = await NodeOAuthClient.fromClientId({
       stateStore[key] = state;
     },
     del: async (key) => {
-      
+      delete stateStore[key];
     }
   }
 });
