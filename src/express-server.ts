@@ -1,5 +1,6 @@
 import express from "express";
 import blueskyClient from "#utils/bluesky-client.js";
+import database from "#utils/mongodb-database";
 
 const app = express();
 
@@ -44,9 +45,18 @@ app.post("/callback", async (request, response) => {
   urlSearchParams.set("code", code);
   urlSearchParams.set("state", state as string);
 
-  // Pair the session with the server.
-  await blueskyClient.callback(urlSearchParams);
-  
+  // Pair the session with the guild.
+  const {session: {sub}, state: stateData} = await blueskyClient.callback(urlSearchParams);
+  await database.collection<{
+    subs: string[]
+  }>("guilds").updateOne({
+    guildID: stateData
+  }, {
+    $addToSet: {
+      subs: sub
+    }
+  })
+
   // Add the session data to the database.
   response.status(201).json({});
 
