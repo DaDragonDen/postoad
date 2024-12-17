@@ -63,9 +63,8 @@ const command = new Command({
 
       switch (interaction.data.customID) {
 
+        case "post/changeText":
         case "post/accountSelector": {
-
-          if (!("values" in interaction.data)) return;
 
           // Send the modal first because Discord wants an initial response.
           await interaction.createModal({
@@ -87,10 +86,22 @@ const command = new Command({
           });
 
           // Update the message.
-          const did = interaction.data.values.getStrings().join();
           const originalResponse = await interaction.getOriginal();
-          const authorSection = originalResponse?.embeds?.[0]?.author;
+          const originalEmbed = originalResponse.embeds?.[0];
+          const authorSection = originalEmbed?.author;
+          const did = "values" in interaction.data ? interaction.data.values.getStrings().join() : originalEmbed?.footer?.text;
           const handle = !authorSection ? (await blueskyClient.didResolver.resolve(did as Did)).alsoKnownAs?.[0].replace("at://", "") : undefined;
+          if (!did) {
+
+            await interaction.editOriginal({
+              content: "Something bad happened. Try again later.",
+              embeds: [],
+              components: []
+            });
+
+            return;
+
+          }
 
           await interaction.editOriginal({
             content: "What do you want the message to say? Respond in the modal.",
@@ -123,7 +134,9 @@ const command = new Command({
           if (!did || !text) {
 
             await interaction.editOriginal({
-              content: "Something bad happened. Try again later."
+              content: "Something bad happened. Try again later.",
+              embeds: [],
+              components: []
             })
             
             return;
@@ -144,6 +157,27 @@ const command = new Command({
             embeds: [],
             components: []
           });
+
+          break;
+
+        }
+
+        case "post/cancelPost": {
+
+          try {
+
+            await interaction.deferUpdate();
+            await interaction.editOriginal({
+              content: "Canceled.",
+              embeds: [],
+              components: []
+            });
+
+          } catch (err) {
+
+            console.log(err);
+
+          }
 
           break;
 
