@@ -48,6 +48,7 @@ const client = await NodeOAuthClient.fromClientId({
         token_type: session.tokenSet.token_type,
         expires_at: session.tokenSet.expires_at
       })
+        .setProtectedHeader({ alg: 'dir', enc: 'A128CBC-HS256' })
         .setAudience(session.tokenSet.aud)
         .setSubject(session.tokenSet.sub)
         .setIssuer(session.tokenSet.iss)
