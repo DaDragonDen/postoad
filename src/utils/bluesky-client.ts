@@ -22,22 +22,29 @@ const client = await NodeOAuthClient.fromClientId({
     JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_3, "BLUESKY_KEY_3"),
   ]),
   sessionStore: {
-    get: async (key, options) => {
+    get: async (sub, session) => {
+      console.log(`Get ${sub}`);
+      console.log(session);
       return undefined
     },
-    set: async (key, options) => {
-      
+    set: async (sub, session) => {
+      console.log(`Attempt to save ${sub}`);
+      console.log(session);
     },
-    del: async (key) => {
-
+    del: async (sub) => {
+      console.log(sub)
     }
   },
   stateStore: {
     get: async (key, options) => {
+      console.log(key);
       return undefined
     },
     set: async (key, options) => {
-      
+      console.log("state set!")
+      console.log(key)
+      console.log(options);
+      console.log(1);
     },
     del: async (key) => {
       

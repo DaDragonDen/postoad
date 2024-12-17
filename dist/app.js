@@ -1,5 +1,7 @@
 import Command from "#utils/Command.js";
 import { Client, InteractionTypes } from "oceanic.js";
+import "./express-server.js";
+// Sign into Discord.
 const client = new Client({
     auth: `Bot ${process.env.DISCORD_TOKEN}`
 });
@@ -20,3 +22,4 @@ client.on("interactionCreate", async (interaction) => {
     }
 });
 client.connect();
+//# sourceMappingURL=app.js.map

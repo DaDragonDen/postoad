@@ -3,7 +3,7 @@ import blueskyClient from "#utils/bluesky-client.js"
 import { ApplicationCommandOptionTypes } from "oceanic.js";
 
 const command = new Command({
-  name: "add",
+  name: "authorize",
   description: "Pair a Bluesky account with this server.",
   options: [
     {
@@ -14,6 +14,17 @@ const command = new Command({
     }
   ],
   action: async (interaction) => {
+
+    // Verify the guild.
+    const {guildID} = interaction;
+    if (!guildID) {
+
+      await interaction.createFollowup({
+        content: "You can only run this command in servers that you manage."
+      });
+      return;
+
+    }
 
     // Ensure that a handle was provided.
     const handle = interaction.data.options.getString("handle");
@@ -27,7 +38,9 @@ const command = new Command({
     }
 
     // Create an authorization handle based on the provided handle.
-    const authorizationURL = await blueskyClient.authorize(handle);
+    const authorizationURL = await blueskyClient.authorize(handle, {
+      state: guildID
+    });
 
     await interaction.createFollowup({
       content: `Please authorize Postoad to use that account by using this link: ${authorizationURL}`

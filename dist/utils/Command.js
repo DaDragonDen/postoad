@@ -102,3 +102,4 @@ export default class Command {
         }
     }
 }
+//# sourceMappingURL=Command.js.map

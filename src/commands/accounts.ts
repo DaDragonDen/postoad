@@ -1,5 +1,5 @@
 import Command from "#utils/Command.js"
-import addAccountCommand from "./accounts/add.js";
+import addAccountCommand from "./accounts/authorize.js";
 
 const command = new Command({
   name: "accounts",
