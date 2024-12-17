@@ -45,8 +45,7 @@ app.post("/callback", async (request, response) => {
   urlSearchParams.set("state", state as string);
 
   // Pair the session with the server.
-  const callbackResult = await blueskyClient.callback(urlSearchParams);
-  console.log(callbackResult);
+  await blueskyClient.callback(urlSearchParams);
   
   // Add the session data to the database.
   response.status(201).json({});
