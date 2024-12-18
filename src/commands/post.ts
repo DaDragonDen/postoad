@@ -56,7 +56,7 @@ const command = new Command({
             ]
           }
         ]
-      })
+      });
 
     }
 

@@ -2,7 +2,7 @@ import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
 import { ApplicationCommandOptionTypes, CommandInteraction, ComponentInteraction } from "oceanic.js";
 
-const command = new Command({
+const authorizeSubCommand = new Command({
   name: "authorize",
   description: "Pair a Bluesky account with this server.",
   options: [
@@ -55,4 +55,4 @@ const command = new Command({
   }
 });
 
-export default command;
+export default authorizeSubCommand;

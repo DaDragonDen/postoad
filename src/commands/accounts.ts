@@ -1,10 +1,11 @@
 import Command from "#utils/Command.js"
-import addAccountCommand from "./accounts/authorize.js";
+import authorizeSubCommand from "./accounts/authorize.js";
+import signoutSubCommand from "./accounts/signout.js";
 
-const command = new Command({
+const accountsCommand = new Command({
   name: "accounts",
   description: "Add a Bluesky account with an app password.",
-  subCommands: [addAccountCommand]
+  subCommands: [authorizeSubCommand, signoutSubCommand]
 });
 
-export default command;
+export default accountsCommand;
