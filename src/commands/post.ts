@@ -32,7 +32,7 @@ const command = new Command({
 
       if (!handlePairs[0]) {
 
-        throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.")
+        throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
 
       }
 
@@ -67,7 +67,7 @@ const command = new Command({
       if (!originalEmbed) throw new Error("Something bad happened. Try again later.");
 
       await interaction.editOriginal({
-        content: "Check this out — make sure it looks good. When you're ready, hit submit!",
+        content: "Check this out — make sure it looks good. Reply to this message with any media that you want to add. When you're ready, hit submit!\n-# Note: Bluesky limits the images and [videos](https://bsky.social/about/blog/09-11-2024-video) that you can post.",
         embeds: [
           {
             ...originalEmbed,

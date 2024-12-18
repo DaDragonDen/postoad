@@ -16,6 +16,28 @@ client.on("ready", async () => {
 
 });
 
+client.on("messageCreate", async (message) => {
+
+  // Check if the author is adding media to their post.
+  const {referencedMessage} = message; 
+  if (referencedMessage && referencedMessage.author.id === client.user.id && referencedMessage.content.includes("Check this out")) {
+
+    const mainEmbed = referencedMessage.embeds[0];
+
+    await referencedMessage.edit({
+      embeds: [
+        mainEmbed,
+        {
+          title: "Included attachments",
+          description: `https://discord.com/channels//${referencedMessage.channelID}/${referencedMessage.id}`
+        }
+      ]
+    });
+
+  }
+
+});
+
 client.on("interactionCreate", async (interaction) => {
 
   switch (interaction.type) {
