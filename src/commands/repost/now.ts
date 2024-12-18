@@ -86,7 +86,7 @@ const repostNowSubCommand = new Command({
     } else if (interaction instanceof ComponentInteraction) {
 
       // Repost the post.
-      await interactWithPost(interaction, "repost");
+      await interactWithPost({interaction}, "repost");
 
       // Let the user know that we liked the post.
       await interaction.editOriginal({

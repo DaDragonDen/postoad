@@ -86,7 +86,7 @@ const command = new Command({
     } else if (interaction instanceof ComponentInteraction) {
 
       // Like the post.
-      await interactWithPost(interaction, "like");
+      await interactWithPost({interaction}, "like");
 
       // Let the user know that we liked the post.
       await interaction.editOriginal({
