@@ -66,12 +66,21 @@ const command = new Command({
       const originalEmbed = originalResponse?.embeds?.[0];
       if (!originalEmbed) throw new Error("Something bad happened. Try again later.");
 
+      const description = (shouldUseEmbedDescription ? originalEmbed.description : newPostContent) || undefined;
+      const attachmentSources = originalEmbed.fields?.[0]?.value ?? "-# Reply to this message with any media that you want to add.";
+
       await interaction.editOriginal({
-        content: "Check this out — make sure it looks good. Reply to this message with any media that you want to add. When you're ready, hit submit!\n-# Note: Bluesky limits the images and [videos](https://bsky.social/about/blog/09-11-2024-video) that you can post.",
+        content: "Check this out — make sure it looks good. When you're ready, hit submit!\n-# Note: Bluesky limits the images and [videos](https://bsky.social/about/blog/09-11-2024-video) that you can post.",
         embeds: [
           {
             ...originalEmbed,
-            description: (shouldUseEmbedDescription ? originalEmbed.description : newPostContent) || undefined
+            description,
+            fields: [
+              {
+                name: "Attachment source",
+                value: attachmentSources
+              }
+            ]
           }
         ],
         components: [
@@ -82,7 +91,8 @@ const command = new Command({
                 type: ComponentTypes.BUTTON,
                 customID: "post/submitPost",
                 style: ButtonStyles.PRIMARY,
-                label: "Submit post"
+                label: "Submit post",
+                disabled: attachmentSources.includes("Reply") && !description
               },
               {
                 type: ComponentTypes.BUTTON,
@@ -156,33 +166,38 @@ const command = new Command({
           // Update the message.
           const originalResponse = await interaction.getOriginal();
           const originalEmbed = originalResponse.embeds?.[0];
-          const authorSection = originalEmbed?.author;
-          const did = "values" in interaction.data ? interaction.data.values.getStrings().join() : originalEmbed?.footer?.text;
-          const handle = !authorSection ? (await blueskyClient.didResolver.resolve(did as Did)).alsoKnownAs?.[0].replace("at://", "") : undefined;
-          if (!did) {
+          let handle;
+          let did;
+          if (interaction.data.customID === "post/accountSelector") {
 
-            await interaction.editOriginal({
-              content: "Something bad happened. Try again later.",
-              embeds: [],
-              components: []
-            });
+            did = "values" in interaction.data ? interaction.data.values.getStrings().join() : originalEmbed?.footer?.text;
+            handle = (await blueskyClient.didResolver.resolve(did as Did)).alsoKnownAs?.[0].replace("at://", "");
+            if (!did) {
 
-            return;
+              await interaction.editOriginal({
+                content: "Something bad happened. Try again later.",
+                embeds: [],
+                components: []
+              });
 
+              return;
+
+            }
+            
           }
 
           await interaction.editOriginal({
             content: "What do you want the message to say? Respond in the modal.",
-            embeds: [
+            embeds: handle && did ? [
               {
-                author: handle ? {
+                author: {
                   name: handle
-                } : authorSection,
+                },
                 footer: {
                   text: did
                 }
               }
-            ],
+            ] : originalResponse.embeds,
             components: []
           });
 
