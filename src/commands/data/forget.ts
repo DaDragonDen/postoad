@@ -9,12 +9,12 @@ const forgetSubCommand = new Command({
   customIDs: ["confirm"],
   action: async (interaction) => {
 
-    await interaction.defer();
-
     // Verify the guild.
     const {guildID} = interaction;
     if (!guildID) {
 
+      await interaction.defer();
+      
       await interaction.createFollowup({
         content: "You can only run this command in servers that you manage."
       });
@@ -23,6 +23,8 @@ const forgetSubCommand = new Command({
     }
     
     if (interaction instanceof CommandInteraction) {
+
+      await interaction.defer();
 
       await interaction.createFollowup({
         content: "Are you sure you want to delete all guild data and associated accounts from its database? You cannot undo this action.",
@@ -48,6 +50,8 @@ const forgetSubCommand = new Command({
       });
 
     } else if (interaction instanceof ComponentInteraction) {
+
+      await interaction.deferUpdate();
 
       switch (interaction.data.customID) {
 
