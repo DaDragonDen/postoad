@@ -22,6 +22,7 @@
     "@atproto/oauth-client-node": "^0.2.4",
     "express": "^4.21.2",
     "mongodb": "^6.12.0",
+    "cors": "^2.8.5",
     "oceanic.js": "^1.11.2"
   },
   "imports": {
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
     "@types/node": "^22.10.2"
   }
 }
