@@ -1,8 +1,11 @@
 import express from "express";
 import blueskyClient from "#utils/bluesky-client.js";
 import database from "#utils/mongodb-database.js";
+import cors from "cors";
 
 const app = express();
+
+app.use(cors());
 
 app.post("/callback", async (request, response) => {
 
