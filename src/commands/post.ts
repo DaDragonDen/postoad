@@ -214,22 +214,96 @@ const command = new Command({
           const originalEmbed = originalResponse?.embeds?.[0];
           const did = originalEmbed?.footer?.text;
           const text = originalEmbed?.description;
-          if (!did || !text) {
+          if (!did) {
 
             await interaction.editOriginal({
               content: "Something bad happened. Try again later.",
               embeds: [],
               components: []
-            })
+            });
             
             return;
 
           }
-
-          // Post to Bluesky.
+          
           const session = await blueskyClient.restore(did);
           const agent = new Agent(session);
-          const post = await agent.post({text});
+          
+          // Try to get images and videos from attachment sources.
+          const attachmentSourceJumpLink = originalEmbed.fields?.[0].value;
+          const blobsWithAltText: [Blob, string?][] = [];
+          if (attachmentSourceJumpLink) {
+
+            // 
+            const attachmentSourceJumpLinkSplits = attachmentSourceJumpLink.split("/");
+            const channelID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 2];
+            const messageID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 1];
+            const message = await interaction.client.rest.channels.getMessage(channelID, messageID);
+            for (const attachment of message.attachments.filter(() => true)) {
+
+              const response = await fetch(attachment.url);
+              if (!response.ok) {
+
+                
+
+              }
+
+              const blob = await response.blob();
+              const altText = attachment.description;
+              blobsWithAltText.push([blob, altText]);
+
+            }
+
+          }
+
+          // Verify that there is at least text or media.
+          if (!blobsWithAltText[0] && !text) {
+
+            const originalComponent = originalResponse.components?.[0];
+
+            if (!originalComponent) return;
+
+            await interaction.editOriginal({
+              components: [
+                {
+                  ...originalComponent,
+                  components: originalComponent.components.map((component, index) => index === 0 ? {
+                    type: ComponentTypes.BUTTON,
+                    customID: "post/submitPost",
+                    style: ButtonStyles.PRIMARY,
+                    label: "Submit post",
+                    disabled: true
+                  } : component)
+                }
+              ]
+            });
+
+            return;
+
+          }
+
+          const images = [];
+          for (const blob of blobsWithAltText) {
+
+            const {data} = await agent.uploadBlob(blob[0], {
+              
+            });
+            images.push({
+              alt: blob[1] ?? "",
+              image: data.blob
+            });
+
+          }
+          
+
+          // Post to Bluesky.
+          const post = await agent.post({
+            text: text ?? "", 
+            embed: images ? {
+              $type: "app.bsky.embed.images",
+              images
+            } : undefined
+          });
 
           // Give the link to the user.
           const uriSplits = post.uri.split("/");

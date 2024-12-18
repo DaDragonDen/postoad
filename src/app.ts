@@ -23,7 +23,6 @@ client.on("messageCreate", async (message) => {
   if (referencedMessage && referencedMessage.author.id === client.user.id && referencedMessage.content.includes("Check this out")) {
 
     const mainEmbed = referencedMessage.embeds[0];
-    const link = `https://discord.com/channels/${message.guildID}/${message.channelID}/${message.id}`;
     const attachments = message.attachments.filter(() => true);
     let errorMessage: string | null = null;
     if (attachments.length === 0) {
@@ -98,7 +97,7 @@ client.on("messageCreate", async (message) => {
           fields: [
             {
               name: "Attachment source",
-              value: errorMessage ? `~~${link}~~\n-# ${errorMessage}` : link
+              value: errorMessage ? `~~${message.jumpLink}~~\n-# ${errorMessage}` : message.jumpLink
             }
           ]
         }
