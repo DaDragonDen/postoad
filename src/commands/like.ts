@@ -90,7 +90,7 @@ const command = new Command({
 
       // Let the user know that we liked the post.
       await interaction.editOriginal({
-        content: "💖 :)",
+        content: "💖",
         components: [],
         embeds: []
       });
