@@ -19,7 +19,7 @@ if (!process.env.BLUESKY_PRIVATE_KEY_3) throw new Error("BLUESKY_PRIVATE_KEY_3 e
 
 const stateStore: {[key: string]: NodeSavedState} = {};
 
-const client = await NodeOAuthClient.fromClientId({
+const blueskyClient = await NodeOAuthClient.fromClientId({
   clientId: "https://postoad.beastslash.com/client-metadata.json",
   keyset: await Promise.all([
     JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_1, "BLUESKY_KEY_1"),
@@ -93,6 +93,19 @@ const client = await NodeOAuthClient.fromClientId({
 
       // Delete the session based on the sub.
       await database.collection("sessions").deleteOne({sub});
+      await database.collection<{
+        subs: string[]
+      }>("guilds").updateMany({
+        subs: {
+          $in: [sub]
+        }
+      }, {
+        $pull: {
+          subs: {
+            $in: [sub]
+          }
+        }
+      });
 
     }
   },
@@ -109,4 +122,4 @@ const client = await NodeOAuthClient.fromClientId({
   }
 });
 
-export default client;
+export default blueskyClient;

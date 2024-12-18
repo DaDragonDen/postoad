@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionsWithValue, ApplicationCommandOptionTypes, ApplicationCommandTypes, Client, CommandInteraction, CreateChatInputApplicationCommandOptions, InteractionOptions, InteractionOptionsWrapper } from "oceanic.js";
+import { ApplicationCommandOptionsWithValue, ApplicationCommandOptionTypes, ApplicationCommandTypes, Client, CommandInteraction, ComponentInteraction, CreateChatInputApplicationCommandOptions, InteractionOptions, InteractionOptionsWrapper, ModalSubmitInteraction } from "oceanic.js";
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -7,9 +7,10 @@ export interface CommandProperties {
   name: string;
   description: string;
   subCommands?: Command[];
+  customIDs?: string[];
   usesEphemeralMessages?: boolean;
   options?: ApplicationCommandOptionsWithValue[];
-  action?: (interaction: CommandInteraction) => Promise<void>;
+  action?: (interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction) => Promise<void>;
 }
 
 export default class Command {
@@ -22,6 +23,9 @@ export default class Command {
   
   /** A list of applicable sub-commands. */
   subCommands: CommandProperties["subCommands"];
+
+  /* A list of custom IDs used in this command. */
+  customIDs: CommandProperties["customIDs"];
 
   /** A boolean value on whether other users should be able to see command usage. */
   usesEphemeralMessages: CommandProperties["usesEphemeralMessages"];
@@ -47,7 +51,7 @@ export default class Command {
 
   }
 
-  static async getFromInteraction(interaction: CommandInteraction): Promise<Command> {
+  static async getFromCommandInteraction(interaction: CommandInteraction): Promise<Command> {
 
     // Get the base commmand.
     const baseCommandName = interaction.data.name;
@@ -72,6 +76,24 @@ export default class Command {
       }
 
       return subCommand;
+
+    }
+
+    return command;
+
+  }
+
+  static async getFromComponentInteraction(interaction: ComponentInteraction | ModalSubmitInteraction): Promise<Command> {
+
+    // Get the base commmand.
+    const separations = interaction.data.customID.split("/");
+    separations.pop();
+    const commandPath = separations.join();
+    const command = (await import(`../commands/${commandPath}.js`)).default;
+
+    if (!(command instanceof Command)) {
+
+      throw new Error(`${commandPath}.js did not return a Command.`);
 
     }
 
@@ -126,17 +148,11 @@ export default class Command {
 
   }
 
-  async execute(interaction: CommandInteraction) {
+  async execute(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction) {
 
     if (!this.action) {
 
       throw new Error("This command has no action function.");
-
-    }
-
-    if (interaction.type === 2) {
-
-      await interaction.defer(this.usesEphemeralMessages ? 64 : undefined);
 
     }
 
@@ -148,6 +164,8 @@ export default class Command {
     const executionTime = new Date().getTime();
     const remainingCooldownTime = this.rateLimitedUsers[authorID] ? (this.rateLimitedUsers[authorID][0] + this.rateLimitedUsers[authorID][1]) - executionTime : 0;
     if (this.rateLimitedUsers[authorID] && remainingCooldownTime > 0 && interaction.channel) {
+
+      await interaction.defer(this.usesEphemeralMessages ? 64 : undefined);
 
       return await interaction.createFollowup({
         content: `You are rate-limited. Wait ${remainingCooldownTime / 1000} more seconds before trying that again.`
