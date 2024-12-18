@@ -16,7 +16,7 @@ const authorizeSubCommand = new Command({
   action: async (interaction) => {
 
     await interaction.defer();
-
+    
     if (!(interaction instanceof CommandInteraction)) {
 
       throw new Error("Something bad happened on our end. Try again later.");
