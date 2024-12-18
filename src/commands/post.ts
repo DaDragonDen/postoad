@@ -232,6 +232,7 @@ const command = new Command({
           // Try to get images and videos from attachment sources.
           const attachmentSourceJumpLink = originalEmbed.fields?.[0].value;
           const blobsWithAltText: [Blob, string?][] = [];
+          let mode: "image" | "video" = "image";
           if (attachmentSourceJumpLink) {
 
             // 
@@ -251,6 +252,12 @@ const command = new Command({
               const blob = await response.blob();
               const altText = attachment.description;
               blobsWithAltText.push([blob, altText]);
+
+              if (attachment.contentType?.includes("video")) {
+
+                mode = "video";
+
+              }
 
             }
 
@@ -282,27 +289,27 @@ const command = new Command({
 
           }
 
-          const images = [];
+          const media = [];
           for (const blob of blobsWithAltText) {
 
-            const {data} = await agent.uploadBlob(blob[0], {
-              
-            });
-            images.push({
+            const {data} = await agent.uploadBlob(blob[0]);
+            media.push({
               alt: blob[1] ?? "",
-              image: data.blob
+              [mode === "video" ? "video" : "image"]: data.blob
             });
 
           }
-          
 
           // Post to Bluesky.
           const post = await agent.post({
             text: text ?? "", 
-            embed: images ? {
+            embed: mode === "video" ? {
+              $type: "app.bsky.embed.video",
+              ...media[0]
+            } : {
               $type: "app.bsky.embed.images",
-              images
-            } : undefined
+              images: media
+            }
           });
 
           // Give the link to the user.
