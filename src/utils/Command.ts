@@ -88,7 +88,7 @@ export default class Command {
     // Get the base commmand.
     const separations = interaction.data.customID.split("/");
     separations.pop();
-    const commandPath = separations.join();
+    const commandPath = separations.join("/");
     const command = (await import(`../commands/${commandPath}.js`)).default;
 
     if (!(command instanceof Command)) {
