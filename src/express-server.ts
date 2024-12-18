@@ -7,6 +7,13 @@ const app = express();
 
 app.use(cors());
 
+
+app.get("/", (_request, response) => {
+
+  response.redirect("https://github.com/DaDragonDen/postoad");
+
+})
+
 app.post("/callback", async (request, response) => {
 
   // Ensure that there's a code.
