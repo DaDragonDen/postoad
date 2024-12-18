@@ -1,6 +1,6 @@
 import Command from "#utils/Command.js"
 import { Agent } from "@atproto/api";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, InteractionContent, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
 import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
 import { Did } from "@atproto/oauth-client-node";
@@ -11,9 +11,7 @@ const command = new Command({
   customIDs: ["accountSelector", "contentModal", "submitPost", "cancelPost", "changeAuthor", "changeText"],
   async action(interaction) {
 
-    if (interaction instanceof CommandInteraction) {
-
-      await interaction.defer(this.usesEphemeralMessages ? 64 : undefined);
+    async function promptUserSelection() {
 
       // Get the accounts that the server can access.
       const { guildID } = interaction;
@@ -39,7 +37,8 @@ const command = new Command({
       }
 
       // Ask the user which user they want to post as.
-      await interaction.createFollowup({
+      const originalMessage = await interaction.getOriginal();
+      await interaction.editOriginal({
         content: "Which user do you want to post as?",
         components: [
           {
@@ -47,7 +46,7 @@ const command = new Command({
             components: [
               {
                 type: ComponentTypes.STRING_SELECT,
-                customID: "post/accountSelector",
+                customID: `post/accountSelector${originalMessage.embeds[0] ? "Update" : ""}`,
                 options: handlePairs.map(([handle, sub]) => ({
                   label: handle,
                   value: sub,
@@ -57,11 +56,80 @@ const command = new Command({
             ]
           }
         ]
+      })
+
+    }
+
+    async function promptConfirmation(newPostContent: string | undefined, shouldUseEmbedDescription: boolean) {
+      
+      const originalResponse = await interaction.getOriginal();
+      const originalEmbed = originalResponse?.embeds?.[0];
+      if (!originalEmbed) throw new Error("Something bad happened. Try again later.");
+
+      await interaction.editOriginal({
+        content: "Check this out — make sure it looks good. When you're ready, hit submit!",
+        embeds: [
+          {
+            ...originalEmbed,
+            description: (shouldUseEmbedDescription ? originalEmbed.description : newPostContent) || undefined
+          }
+        ],
+        components: [
+          {
+            type: ComponentTypes.ACTION_ROW,
+            components: [
+              {
+                type: ComponentTypes.BUTTON,
+                customID: "post/submitPost",
+                style: ButtonStyles.PRIMARY,
+                label: "Submit post"
+              },
+              {
+                type: ComponentTypes.BUTTON,
+                customID: "post/changeAuthor",
+                style: ButtonStyles.SECONDARY,
+                label: "Change author"
+              },
+              {
+                type: ComponentTypes.BUTTON,
+                customID: "post/changeText",
+                style: ButtonStyles.SECONDARY,
+                label: "Change post text"
+              },
+              {
+                type: ComponentTypes.BUTTON,
+                customID: "post/cancelPost",
+                style: ButtonStyles.DANGER,
+                label: "Cancel post"
+              },
+            ]
+          }
+        ]
       });
+
+    }
+
+    if (interaction instanceof CommandInteraction) {
+
+      await interaction.defer();
+      await promptUserSelection();
 
     } else if (interaction instanceof ComponentInteraction) {
 
       switch (interaction.data.customID) {
+
+        case "post/accountSelectorUpdate":
+          await interaction.deferUpdate();
+          await promptConfirmation(undefined, true);
+          break;
+
+        case "post/changeAuthor": {
+
+          await interaction.deferUpdate();
+          promptUserSelection();
+          break;
+
+        }
 
         case "post/changeText":
         case "post/accountSelector": {
@@ -164,20 +232,8 @@ const command = new Command({
 
         case "post/cancelPost": {
 
-          try {
-
-            await interaction.deferUpdate();
-            await interaction.editOriginal({
-              content: "Canceled.",
-              embeds: [],
-              components: []
-            });
-
-          } catch (err) {
-
-            console.log(err);
-
-          }
+          await interaction.deferUpdate();
+          await interaction.deleteOriginal();
 
           break;
 
@@ -192,52 +248,8 @@ const command = new Command({
     } else if (interaction instanceof ModalSubmitInteraction) {
 
       await interaction.deferUpdate();
-      
-      const originalResponse = await interaction.getOriginal();
-      const originalEmbed = originalResponse?.embeds?.[0];
-      if (!originalEmbed) throw new Error("Something bad happened. Try again later.");
-
       const postContent = interaction.data.components.getTextInput("post/content");
-      await interaction.editOriginal({
-        content: "Check this out — make sure it looks good. When you're ready, hit submit!",
-        embeds: [
-          {
-            ...originalEmbed,
-            description: postContent || undefined
-          }
-        ],
-        components: [
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.BUTTON,
-                customID: "post/submitPost",
-                style: ButtonStyles.PRIMARY,
-                label: "Submit post"
-              },
-              {
-                type: ComponentTypes.BUTTON,
-                customID: "post/changeAuthor",
-                style: ButtonStyles.SECONDARY,
-                label: "Change author"
-              },
-              {
-                type: ComponentTypes.BUTTON,
-                customID: "post/changeText",
-                style: ButtonStyles.SECONDARY,
-                label: "Change post text"
-              },
-              {
-                type: ComponentTypes.BUTTON,
-                customID: "post/cancelPost",
-                style: ButtonStyles.DANGER,
-                label: "Cancel post"
-              },
-            ]
-          }
-        ]
-      });
+      await promptConfirmation(postContent, false);
 
     }
 
