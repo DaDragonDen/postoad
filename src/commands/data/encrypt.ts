@@ -1,6 +1,6 @@
 import Command from "#utils/Command.js"
 import database from "#utils/mongodb-database.js";
-import { hash } from "argon2";
+import { hash, verify } from "argon2";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
 
 const encryptSubCommand = new Command({
@@ -76,7 +76,7 @@ const encryptSubCommand = new Command({
           
           // Make sure a method was provided.
           const goalEncryptionLevel = "values" in interaction.data ? parseInt(interaction.data.values.getStrings()[0], 10) : undefined;
-          if (!goalEncryptionLevel) {
+          if (typeof(goalEncryptionLevel) !== "number") {
 
             await interaction.deferUpdate();
             await interaction.editOriginal({
@@ -181,7 +181,8 @@ const encryptSubCommand = new Command({
       const selectedOption = options?.find((option) => option.default);
       const currentGroupPassword = interaction.data.components.getTextInput("data/encrypt/currentPassword");
       const newGroupPassword = interaction.data.components.getTextInput("data/encrypt/newPassword");
-      if (!selectedOption || !newGroupPassword) {
+      const password = currentGroupPassword ?? newGroupPassword;
+      if (!selectedOption || !password) {
 
         await interaction.editOriginal({
           content: "Something bad happened. Please try again later.",
@@ -194,13 +195,72 @@ const encryptSubCommand = new Command({
       
       const goalEncryptionLevel = Number(selectedOption.value);
 
+      // Check if that's the correct password.
+      const guildData = await database.collection("guilds").findOne({guildID});
+      if (guildData?.hashedGroupPassword && (!currentGroupPassword || !await verify(guildData.hashedGroupPassword, currentGroupPassword))) {
+
+        const currentEncryptionLevel = guildData.encryptionLevel;
+
+        await interaction.editOriginal({
+          embeds: [
+            {
+              color: 15548997,
+              description: "❌ Incorrect password..."
+            }
+          ],
+          components: [
+            {
+              type: ComponentTypes.ACTION_ROW,
+              components: [
+                {
+                  type: ComponentTypes.STRING_SELECT,
+                  customID: "data/encrypt/method",
+                  options: [
+                    {
+                      label: "Encrypt using system password",
+                      value: "0",
+                      description: "Most convenient",
+                      default: !currentEncryptionLevel
+                    }, 
+                    {
+                      label: "Encrypt using system password and ask for group password",
+                      value: "1",
+                      description: "Balanced",
+                      default: currentEncryptionLevel === 1
+                    },
+                    {
+                      label: "Encrypt using group password",
+                      value: "2",
+                      description: "Most secure",
+                      default: currentEncryptionLevel === 2
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        });
+
+        return;
+
+      }
+
       // Save the password in the database.
-      if (goalEncryptionLevel === 1) {
+      if (goalEncryptionLevel === 0) {
+        
+        await database.collection("guilds").updateOne({guildID}, {
+          $unset: {
+            hashedGroupPassword: 1,
+            encryptionLevel: 1
+          }
+        });
+
+      } else if (goalEncryptionLevel === 1) {
 
         // Add an encrypted password to the guild data.
         await database.collection("guilds").updateOne({guildID}, {
           $set: {
-            hashedGroupPassword: await hash(newGroupPassword),
+            hashedGroupPassword: await hash(password),
             encryptionLevel: 1
           }
         });
