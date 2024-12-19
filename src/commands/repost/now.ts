@@ -4,9 +4,9 @@ import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
 import interactWithPost from "#utils/interact-with-post.js";
 
-const command = new Command({
-  name: "like",
-  description: "Like a post on Bluesky.",
+const repostNowSubCommand = new Command({
+  name: "now",
+  description: "Repost a post on Bluesky.",
   options: [
     {
       type: ApplicationCommandOptionTypes.STRING,
@@ -71,7 +71,7 @@ const command = new Command({
             components: [
               {
                 type: ComponentTypes.STRING_SELECT,
-                customID: "like/accountSelector",
+                customID: "repost/now/accountSelector",
                 options: handlePairs.map(([handle, sub]) => ({
                   label: handle,
                   value: sub,
@@ -85,12 +85,12 @@ const command = new Command({
 
     } else if (interaction instanceof ComponentInteraction) {
 
-      // Like the post.
-      await interactWithPost({interaction}, "like");
+      // Repost the post.
+      await interactWithPost({interaction}, "repost");
 
       // Let the user know that we liked the post.
       await interaction.editOriginal({
-        content: "💖",
+        content: "♻️",
         components: [],
         embeds: []
       });
@@ -100,4 +100,4 @@ const command = new Command({
   }
 });
 
-export default command;
+export default repostNowSubCommand;
