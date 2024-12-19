@@ -17,17 +17,18 @@ const command = new Command({
   ],
   customIDs: ["accountSelector"],
   async action(interaction) {
+    
+    const { guildID } = interaction;
+    if (!guildID) {
 
+      throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
+
+    }
+    
     if (interaction instanceof CommandInteraction) {
 
       // Get the accounts that the server can access.
       await interaction.defer();
-      const { guildID } = interaction;
-      if (!guildID) {
-
-        throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
-
-      }
 
       const guildData = await database.collection("guilds").findOne({guildID});
       const handlePairs = [];
@@ -86,7 +87,7 @@ const command = new Command({
     } else if (interaction instanceof ComponentInteraction) {
 
       // Like the post.
-      await interactWithPost({interaction}, "like");
+      await interactWithPost({interaction, guildID}, "like");
 
       // Let the user know that we liked the post.
       await interaction.editOriginal({

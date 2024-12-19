@@ -64,7 +64,7 @@ const forgetSubCommand = new Command({
           for (const sub of guildData?.subs || []) {
 
             // Revoke the session.
-            const session = await blueskyClient.restore(sub);
+            const session = await blueskyClient.restore(sub, "auto", {guildID});
             await session.signOut();
 
           }

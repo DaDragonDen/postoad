@@ -1,4 +1,7 @@
 import Command from "#utils/Command.js"
+import decryptSession from "#utils/decrypt-session.js";
+import encryptSession from "#utils/encrypt-session.js";
+import getRandomKey from "#utils/get-random-key.js";
 import database from "#utils/mongodb-database.js";
 import { hash, verify } from "argon2";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
@@ -197,9 +200,8 @@ const encryptSubCommand = new Command({
 
       // Check if that's the correct password.
       const guildData = await database.collection("guilds").findOne({guildID});
+      const currentEncryptionLevel = guildData?.encryptionLevel;
       if (guildData?.hashedGroupPassword && (!currentGroupPassword || !await verify(guildData.hashedGroupPassword, currentGroupPassword))) {
-
-        const currentEncryptionLevel = guildData.encryptionLevel;
 
         await interaction.editOriginal({
           embeds: [
@@ -246,8 +248,60 @@ const encryptSubCommand = new Command({
       }
 
       // Save the password in the database.
+      async function swapSessionEncryptions(password: string, newEncryption: "system" | "group") {
+
+        const sessions = await database.collection("sessions").find({guildID}).toArray();
+        for (const sessionData of sessions) {
+
+          let systemPassword = "";
+          if (newEncryption === "group") {
+
+            const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+            if (!possibleSystemPassword) throw new Error();
+            systemPassword = possibleSystemPassword;
+
+          }
+
+          // Decrypt the session using the password.
+          const decryptedSession = await decryptSession(sessionData.encryptedSession, newEncryption === "system" ? password : systemPassword);
+          const decryptedSessionString = JSON.stringify(decryptedSession);
+
+          // Re-encrypt it using the new password.
+          let encryptedSession;
+          let keyData;
+          if (newEncryption === "system") {
+
+            keyData = getRandomKey();
+            encryptedSession = await encryptSession(decryptedSessionString, keyData.key);
+            await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
+              $set: {
+                encryptedSession,
+                keyID: keyData.keyID
+              },
+            });
+
+          } else {
+
+            encryptedSession = await encryptSession(decryptedSessionString, password);
+            await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
+              $set: {
+                encryptedSession,
+              },
+              $unset: {
+                keyID: 1
+              }
+            });
+
+          }
+          
+        }
+
+      }
+
       if (goalEncryptionLevel === 0) {
         
+        await swapSessionEncryptions(password, "system");
+
         await database.collection("guilds").updateOne({guildID}, {
           $unset: {
             hashedGroupPassword: 1,
@@ -258,6 +312,8 @@ const encryptSubCommand = new Command({
       } else if (goalEncryptionLevel === 1) {
 
         // Add an encrypted password to the guild data.
+        await swapSessionEncryptions(password, "system");
+
         await database.collection("guilds").updateOne({guildID}, {
           $set: {
             hashedGroupPassword: await hash(password),
@@ -268,6 +324,14 @@ const encryptSubCommand = new Command({
       } else if (goalEncryptionLevel === 2) {
 
         // Update the sessions' encryption directly.
+        await swapSessionEncryptions(password, "group");
+
+        await database.collection("guilds").updateOne({guildID}, {
+          $set: {
+            hashedGroupPassword: await hash(password),
+            encryptionLevel: 2
+          }
+        });
 
       }
 

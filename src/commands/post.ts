@@ -11,16 +11,16 @@ const command = new Command({
   customIDs: ["accountSelector", "contentModal", "submitPost", "cancelPost", "changeAuthor", "changeText"],
   async action(interaction) {
 
+    const { guildID } = interaction;
+    if (!guildID) {
+
+      throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
+
+    }
+
     async function promptUserSelection() {
 
       // Get the accounts that the server can access.
-      const { guildID } = interaction;
-      if (!guildID) {
-
-        throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
-
-      }
-
       const guildData = await database.collection("guilds").findOne({guildID});
       const handlePairs = [];
       for (const sub of guildData?.subs ?? []) {
@@ -226,7 +226,7 @@ const command = new Command({
 
           }
           
-          const session = await blueskyClient.restore(did);
+          const session = await blueskyClient.restore(did, "auto", {guildID});
           const agent = new Agent(session);
           
           // Try to get images and videos from attachment sources.
