@@ -61,10 +61,11 @@ const forgetSubCommand = new Command({
           const guildData = await database.collection("guilds").findOneAndDelete({guildID});
           
           // Delete all sessions.
-          for (const sub of guildData?.subs || []) {
+          const sessions = await database.collection("sessions").find({guildID}).toArray();
+          for (const sessionData of sessions) {
 
             // Revoke the session.
-            const session = await blueskyClient.restore(sub, "auto", {guildID});
+            const session = await blueskyClient.restore(sessionData.sub, "auto", {guildID});
             await session.signOut();
 
           }

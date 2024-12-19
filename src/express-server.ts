@@ -56,18 +56,7 @@ app.post("/callback", async (request, response) => {
   urlSearchParams.set("state", state as string);
 
   // Pair the session with the guild.
-  const {session: {sub}, state: stateData} = await blueskyClient.callback(urlSearchParams);
-  await database.collection<{
-    subs: string[]
-  }>("guilds").updateOne({
-    guildID: stateData
-  }, {
-    $addToSet: {
-      subs: sub
-    }
-  }, {
-    upsert: true
-  })
+  await blueskyClient.callback(urlSearchParams);
 
   // Add the session data to the database.
   response.status(201).json({});

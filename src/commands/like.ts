@@ -31,9 +31,11 @@ const command = new Command({
       await interaction.defer();
 
       const guildData = await database.collection("guilds").findOne({guildID});
+      const sessions = await database.collection("sessions").find({guildID}).toArray();
       const handlePairs = [];
-      for (const sub of guildData?.subs ?? []) {
+      for (const session of sessions) {
 
+        const {sub} = session;
         const handle = await blueskyClient.didResolver.resolve(sub);
         handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
 

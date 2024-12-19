@@ -34,8 +34,10 @@ const repostAutoSubCommand = new Command({
 
       // Get the accounts that the server can access.
       const handlePairs = [];
-      for (const sub of guildData?.subs ?? []) {
+      const sessions = await database.collection("sessions").find({guildID}).toArray();
+      for (const sessionData of sessions) {
 
+        const {sub} = sessionData;
         const handle = await blueskyClient.didResolver.resolve(sub);
         handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
 
