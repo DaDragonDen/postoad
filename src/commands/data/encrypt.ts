@@ -330,6 +330,9 @@ const encryptSubCommand = new Command({
           $set: {
             hashedGroupPassword: await hash(password),
             encryptionLevel: 2
+          },
+          $unset: {
+            autoPairs: 1
           }
         });
 
