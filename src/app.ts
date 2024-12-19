@@ -131,7 +131,7 @@ client.on("messageCreate", async (message) => {
 
     for (const did of Object.keys(autoPairs)) {
 
-      if (autoPairs[did]?.isReposting) {
+      if (autoPairs[did]?.isReposting && autoPairs[did].channelID === message.channelID) {
 
         // Check if the user added a Bluesky post.
         const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
@@ -155,6 +155,54 @@ client.on("messageCreate", async (message) => {
   }
 
 });
+
+client.on("messageReactionRemove", async (uncachedMessage, reactor, reaction) => {
+
+  try {
+
+    if (reactor.id === client.user.id && reaction.emoji.name === "♻️") {
+
+      // Check if auto-reposting is enabled in this channel.
+      const message = await client.rest.channels.getMessage(uncachedMessage.channelID, uncachedMessage.id);
+      const guildID = message.guildID;
+      if (!guildID) return;
+      const guildData = await database.collection("guilds").findOne({guildID});
+      const autoPairs = guildData?.autoPairs;
+      if (autoPairs) {
+
+        for (const did of Object.keys(autoPairs)) {
+
+          if (autoPairs[did]?.isReposting && autoPairs[did].channelID === message.channelID) {
+
+            // Check if the user added a Bluesky post.
+            const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
+            const matches = [...message.content.matchAll(matchingRegex)];
+            for (const match of matches) {
+
+              if (match.groups) {
+
+                const {rkey, postCreatorHandle} = match.groups;
+                await interactWithPost({rkey, postCreatorHandle, actorDID: did}, "deleteRepost");
+
+              }
+
+            }
+        
+          }
+
+        }
+
+      }
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+})
 
 client.on("interactionCreate", async (interaction) => {
 

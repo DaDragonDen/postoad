@@ -1,8 +1,9 @@
 import { ComponentInteraction } from "oceanic.js";
 import blueskyClient from "./bluesky-client.js";
 import { Agent } from "@atproto/api";
+import { isThreadViewPost } from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
 
-async function interactWithPost(source: {interaction?: ComponentInteraction, rkey?: string, postCreatorHandle?: string, actorDID?: string}, action: "like" | "repost") {
+async function interactWithPost(source: {interaction?: ComponentInteraction, rkey?: string, postCreatorHandle?: string, actorDID?: string}, action: "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
 
   let {interaction, rkey, postCreatorHandle, actorDID} = source;
 
@@ -99,8 +100,23 @@ async function interactWithPost(source: {interaction?: ComponentInteraction, rke
 
   }
 
+  // Get the URI we need.
+  let uri = `at://${postCreatorDID}/app.bsky.feed.post/${rkey}`;
+  if (action === "deleteLike" || action === "deleteRepost") {
+
+    const response = await agent.getPostThread({uri});
+    if (isThreadViewPost(response.data.thread)) {
+
+      const possibleURI = response.data.thread.post.viewer?.[action === "deleteLike" ? "like" : "repost"];
+      if (!possibleURI) return;
+      uri = possibleURI;
+
+    }
+
+  }
+
   // Interact with the post.
-  await agent[action](`at://${postCreatorDID}/app.bsky.feed.post/${rkey}`, cid);
+  await agent[action](uri, cid as string);
 
 }
 
