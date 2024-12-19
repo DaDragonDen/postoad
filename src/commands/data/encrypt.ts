@@ -1,7 +1,7 @@
 import Command from "#utils/Command.js"
 import database from "#utils/mongodb-database.js";
 import { hash } from "argon2";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
 
 const encryptSubCommand = new Command({
   name: "encrypt",
@@ -72,46 +72,6 @@ const encryptSubCommand = new Command({
 
       switch (interaction.data.customID) {
 
-        case "data/encrypt/newPassword":
-          
-          // Get the goal encryption level.
-          const originalMessage = await interaction.getOriginal();
-          const dropdownComponent = originalMessage.components?.[0]?.components[0];
-          const options = "options" in dropdownComponent ? dropdownComponent.options : undefined;
-          const selectedOption = options?.find((option) => option.default);
-          const groupPassword = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
-          if (!selectedOption || !groupPassword) {
-
-            await interaction.deferUpdate();
-            await interaction.editOriginal({
-              content: "Something bad happened. Please try again later.",
-              components: []
-            });
-            
-            return;
-
-          }
-          
-          const goalEncryptionLevel = Number(selectedOption.value);
-
-          // Save the password in the database.
-          if (goalEncryptionLevel === 1) {
-
-            // Add an encrypted password to the guild data.
-            await database.collection("guilds").updateOne({guildID}, {
-              $set: {
-                hashedGroupPassword: await hash(groupPassword)
-              }
-            });
-
-          } else if (goalEncryptionLevel === 2) {
-
-            // Update the sessions' encryption directly.
-
-          }
-
-          break;
-
         case "data/encrypt/method": {
           
           // Make sure a method was provided.
@@ -172,19 +132,19 @@ const encryptSubCommand = new Command({
                       options: [
                         {
                           label: "Encrypt using system password",
-                          value: "auto",
+                          value: "0",
                           description: "Most convenient",
                           default: goalEncryptionLevel === 0
                         }, 
                         {
                           label: "Encrypt using system password and ask for group password",
-                          value: "autoAsk",
+                          value: "1",
                           description: "Balanced",
                           default: goalEncryptionLevel === 1
                         },
                         {
                           label: "Encrypt using group password",
-                          value: "groupAsk",
+                          value: "2",
                           description: "Most secure",
                           default: goalEncryptionLevel === 2
                         }
@@ -210,6 +170,82 @@ const encryptSubCommand = new Command({
           break;
 
       }
+
+    } else if (interaction instanceof ModalSubmitInteraction) {
+
+      // Get the goal encryption level.
+      await interaction.deferUpdate();
+      const originalMessage = await interaction.getOriginal();
+      const dropdownComponent = originalMessage.components?.[0]?.components[0];
+      const options = "options" in dropdownComponent ? dropdownComponent.options : undefined;
+      const selectedOption = options?.find((option) => option.default);
+      const currentGroupPassword = interaction.data.components.getTextInput("data/encrypt/currentPassword");
+      const newGroupPassword = interaction.data.components.getTextInput("data/encrypt/newPassword");
+      if (!selectedOption || !newGroupPassword) {
+
+        await interaction.editOriginal({
+          content: "Something bad happened. Please try again later.",
+          components: []
+        });
+        
+        return;
+
+      }
+      
+      const goalEncryptionLevel = Number(selectedOption.value);
+
+      // Save the password in the database.
+      if (goalEncryptionLevel === 1) {
+
+        // Add an encrypted password to the guild data.
+        await database.collection("guilds").updateOne({guildID}, {
+          $set: {
+            hashedGroupPassword: await hash(newGroupPassword),
+            encryptionLevel: 1
+          }
+        });
+
+      } else if (goalEncryptionLevel === 2) {
+
+        // Update the sessions' encryption directly.
+
+      }
+
+      // Let the user know.
+      await interaction.editOriginal({
+        embeds: [],
+        components: [
+          {
+            type: ComponentTypes.ACTION_ROW,
+            components: [
+              {
+                type: ComponentTypes.STRING_SELECT,
+                customID: "data/encrypt/method",
+                options: [
+                  {
+                    label: "Encrypt using system password",
+                    value: "0",
+                    description: "Most convenient",
+                    default: goalEncryptionLevel === 0
+                  }, 
+                  {
+                    label: "Encrypt using system password and ask for group password",
+                    value: "1",
+                    description: "Balanced",
+                    default: goalEncryptionLevel === 1
+                  },
+                  {
+                    label: "Encrypt using group password",
+                    value: "2",
+                    description: "Most secure",
+                    default: goalEncryptionLevel === 2
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      });
 
     }
 
