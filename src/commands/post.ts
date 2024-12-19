@@ -233,7 +233,7 @@ const command = new Command({
           const attachmentSourceJumpLink = originalEmbed.fields?.[0].value;
           const blobsWithAltText: [Blob, string?][] = [];
           let mode: "image" | "video" = "image";
-          if (attachmentSourceJumpLink) {
+          if (attachmentSourceJumpLink && !attachmentSourceJumpLink.includes("-#")) {
 
             // 
             const attachmentSourceJumpLinkSplits = attachmentSourceJumpLink.split("/");
