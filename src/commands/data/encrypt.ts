@@ -254,7 +254,7 @@ const encryptSubCommand = new Command({
         for (const sessionData of sessions) {
 
           let systemPassword = "";
-          if (newEncryption === "group") {
+          if (sessionData.keyID) {
 
             const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
             if (!possibleSystemPassword) throw new Error();
@@ -263,7 +263,7 @@ const encryptSubCommand = new Command({
           }
 
           // Decrypt the session using the password.
-          const decryptedSession = await decryptSession(sessionData.encryptedSession, newEncryption === "system" ? password : systemPassword);
+          const decryptedSession = await decryptSession(sessionData.encryptedSession, systemPassword || password);
           const decryptedSessionString = JSON.stringify(decryptedSession);
 
           // Re-encrypt it using the new password.

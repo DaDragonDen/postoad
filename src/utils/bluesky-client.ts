@@ -63,7 +63,7 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
 
         }
 
-        encryptedSession = encryptSession(sessionJSON, options.encryptionKey);
+        encryptedSession = await encryptSession(sessionJSON, options.encryptionKey);
 
       } else {
 
