@@ -123,15 +123,17 @@ client.on("messageCreate", async (message) => {
   }
 
   // Check if auto-reposting is enabled in this channel.
-  const guildID = message.guildID;
+  const channel = await client.rest.channels.get(message.channelID);
+  const guildID = "guildID" in channel ? channel.guildID : undefined;
   if (!guildID) return;
+
   const guildData = await database.collection("guilds").findOne({guildID});
   const autoPairs = guildData?.autoPairs;
   if (autoPairs) {
 
     for (const did of Object.keys(autoPairs)) {
 
-      if (autoPairs[did]?.isReposting && autoPairs[did].channelID === message.channelID) {
+      if (autoPairs[did]?.isReposting && (autoPairs[did].channelID === message.channelID || ("parentID" in channel && autoPairs[did].channelID === channel.parentID))) {
 
         // Check if the user added a Bluesky post.
         const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
@@ -164,15 +166,17 @@ client.on("messageReactionRemove", async (uncachedMessage, reactor, reaction) =>
 
       // Check if auto-reposting is enabled in this channel.
       const message = await client.rest.channels.getMessage(uncachedMessage.channelID, uncachedMessage.id);
-      const guildID = message.guildID;
+      const channel = await client.rest.channels.get(message.channelID);
+      const guildID = "guildID" in channel ? channel.guildID : undefined;
       if (!guildID) return;
+      
       const guildData = await database.collection("guilds").findOne({guildID});
       const autoPairs = guildData?.autoPairs;
       if (autoPairs) {
 
         for (const did of Object.keys(autoPairs)) {
 
-          if (autoPairs[did]?.isReposting && autoPairs[did].channelID === message.channelID) {
+          if (autoPairs[did]?.isReposting && (autoPairs[did].channelID === message.channelID || ("parentID" in channel && autoPairs[did].channelID === channel.parentID))) {
 
             // Check if the user added a Bluesky post.
             const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
