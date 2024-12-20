@@ -24,12 +24,14 @@ export type TokenInfo = {
 
 export class OAuthSession {
   protected dpopFetch: Fetch<unknown>
+  options: Record<string, unknown>
 
   constructor(
     public readonly server: OAuthServerAgent,
     public readonly sub: AtprotoDid,
     private readonly sessionGetter: SessionGetter,
     fetch: Fetch = globalThis.fetch,
+    options: Record<string, unknown> = {}
   ) {
     this.dpopFetch = dpopFetchWrapper<void>({
       fetch: bindFetch(fetch),
@@ -39,7 +41,8 @@ export class OAuthSession {
       sha256: async (v) => server.runtime.sha256(v),
       nonces: server.dpopNonces,
       isAuthServer: false,
-    })
+    });
+    this.options = options;
   }
 
   get did(): AtprotoDid {
@@ -60,6 +63,7 @@ export class OAuthSession {
     const { tokenSet } = await this.sessionGetter.get(this.sub, {
       noCache: refresh === true,
       allowStale: refresh === false,
+      ...this.options
     })
 
     return tokenSet

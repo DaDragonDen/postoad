@@ -485,7 +485,7 @@ export class OAuthClient extends CustomEventTarget<OAuthClientEventMap> {
   async restore(
     sub: string,
     refresh: boolean | 'auto' = 'auto',
-    options: Record<string, unknown>
+    options?: Record<string, unknown>
   ): Promise<OAuthSession> {
     // sub arg is lightly typed for convenience of library user
     assertAtprotoDid(sub)
@@ -501,7 +501,7 @@ export class OAuthClient extends CustomEventTarget<OAuthClientEventMap> {
       allowStale: refresh === false,
     })
 
-    return this.createSession(server, sub)
+    return this.createSession(server, sub, options)
   }
 
   async revoke(sub: string) {
@@ -526,7 +526,8 @@ export class OAuthClient extends CustomEventTarget<OAuthClientEventMap> {
   protected createSession(
     server: OAuthServerAgent,
     sub: AtprotoDid,
+    options?: Record<string, unknown>
   ): OAuthSession {
-    return new OAuthSession(server, sub, this.sessionGetter, this.fetch)
+    return new OAuthSession(server, sub, this.sessionGetter, this.fetch, options)
   }
 }
