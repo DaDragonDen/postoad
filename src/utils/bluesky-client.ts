@@ -1,8 +1,10 @@
-import { NodeOAuthClient, NodeSavedState } from "@atproto/oauth-client-node";
+import { NodeSavedState } from "@atproto/oauth-client-node";
 import { JoseKey } from "@atproto/jwk-jose";
 import database from "./mongodb-database.js";
-import { jwtDecrypt, EncryptJWT, importJWK } from "jose";
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
+import decryptSession from "./decrypt-session.js";
+import encryptSession from "./encrypt-session.js";
+import { NodeOAuthClient } from "./atproto-custom-deps/node-oauth-client.js";
+import getRandomKey from "./get-random-key.js";
 
 // Need some keys? Use this for easy access: 
 // console.log(JSON.stringify((await JoseKey.fromKeyLike((await JoseKey.generateKeyPair()).privateKey))))
@@ -27,61 +29,57 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
     JoseKey.fromJWK(process.env.BLUESKY_PRIVATE_KEY_3, "BLUESKY_KEY_3"),
   ]),
   sessionStore: {
-    get: async (sub) => {
+    get: async (sub, options) => {
 
       // Get the stored session.
       const collection = database.collection("sessions");
-      const sessionData = await collection.findOne({sub});
+      const sessionData = await collection.findOne({sub, guildID: options?.guildID});
       if (!sessionData) return undefined;
 
       // Decrypt the session.
-      const key = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+      const key = options?.decryptionPassword && typeof(options.decryptionPassword) === "string" ? options.decryptionPassword : process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
       if (!key) return undefined;
 
-      const keyHash = createHash("sha256").update(key).digest();
-      const buffer = Buffer.from(sessionData.encryptedSession, "base64");
-      const iv = buffer.subarray(0, 16);
-      const encryptedText = buffer.subarray(16).toString("hex");
-      const decipher = createDecipheriv("aes-256-cbc", keyHash, iv);
-      let decryptedText = decipher.update(encryptedText, "hex", "utf-8");
-      decryptedText += decipher.final("utf-8");
-
-      // Turn the session back into an object.
-      const session = JSON.parse(decryptedText);
-
       // Return the decrypted session.
-      return session;
+      return await decryptSession(sessionData.encryptedSession, key);
 
     },
-    set: async (sub, session) => {
+    set: async (sub, session, options) => {
       
       // Turn the session info into a string.
       const sessionJSON = JSON.stringify(session);
 
-      // Select a random key for encryption.
-      let key;
+      // Check the type of security the system should use.
+      const guildID = options?.guildID;
+      if (!guildID) throw new Error("Guild ID missing."); 
+      const guildData = await database.collection("guilds").findOne({guildID});
       let keyID;
-      while (!key) {
+      let encryptedSession;
+      if (guildData && guildData.encryptionLevel === 2) {
 
-        keyID = Math.floor(Math.random() * 3) + 1;
-        key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`];
+        if (typeof(options?.encryptionKey) !== "string") {
 
+          throw new Error("Encryption key is missing.");
+
+        }
+
+        encryptedSession = await encryptSession(sessionJSON, options.encryptionKey);
+
+      } else {
+
+        // Select a random key for encryption.
+        const keyData = getRandomKey();
+        encryptedSession = await encryptSession(sessionJSON, keyData.key);
+        keyID = keyData.keyID;
+        
       }
-      
-      // Encrypt the session using the key.
-      const keyHash = createHash("sha256").update(key).digest();
-      const iv = randomBytes(16);
-      const cipher = createCipheriv("aes-256-cbc", keyHash, iv);
-      let encryptedSession = cipher.update(sessionJSON, "utf-8", "hex");
-      encryptedSession += cipher.final("hex");
-      const encryptedSessionBase64 = Buffer.concat([iv, Buffer.from(encryptedSession, "hex")]).toString("base64");
 
       // Save the session to the database.
       await database.collection("sessions").updateOne({
         sub
       }, {
         $set: {
-          encryptedSession: encryptedSessionBase64,
+          encryptedSession,
           keyID
         }
       }, {
@@ -106,8 +104,8 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
           }
         }
       });
-
     }
+    
   },
   stateStore: {
     get: async (key) => {

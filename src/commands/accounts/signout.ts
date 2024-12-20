@@ -9,22 +9,23 @@ const signoutSubCommand = new Command({
   customIDs: ["accountSelector"],
   async action(interaction) {
 
+    // Get the Bluesky accounts.
+    const { guildID } = interaction;
+    if (!guildID) {
+
+      throw new Error("You must use this command in a server.");
+
+    }
+
     if (interaction instanceof CommandInteraction) {
 
       await interaction.defer();
-
-      // Get the Bluesky accounts.
-      const { guildID } = interaction;
-      if (!guildID) {
-
-        throw new Error("You must use this command in a server.");
-
-      }
-
-      const guildData = await database.collection("guilds").findOne({guildID});
+      
+      const sessions = await database.collection("sessions").find({guildID}).toArray();
       const handlePairs = [];
-      for (const sub of guildData?.subs ?? []) {
+      for (const session of sessions) {
 
+        const {sub} = session;
         const handle = await blueskyClient.didResolver.resolve(sub);
         handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
 
@@ -76,8 +77,7 @@ const signoutSubCommand = new Command({
 
       for (const did of dids) {
 
-        const session = await blueskyClient.restore(did);
-        await session.signOut();
+        await database.collection("sessions").deleteOne({sub: did});
 
       }
 

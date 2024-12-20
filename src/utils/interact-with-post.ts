@@ -1,15 +1,13 @@
-import { ComponentInteraction } from "oceanic.js";
+import { ComponentInteraction, ModalSubmitInteraction } from "oceanic.js";
 import blueskyClient from "./bluesky-client.js";
 import { Agent } from "@atproto/api";
 import { isThreadViewPost } from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
 
-async function interactWithPost(source: {interaction?: ComponentInteraction, rkey?: string, postCreatorHandle?: string, actorDID?: string}, action: "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
+async function interactWithPost(source: {interaction?: ModalSubmitInteraction | ComponentInteraction, rkey?: string, postCreatorHandle?: string, actorDID?: string, guildID: string, decryptionPassword?: string}, action: "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
 
   let {interaction, rkey, postCreatorHandle, actorDID} = source;
 
   if (interaction) {
-
-    await interaction.deferUpdate();
 
     // Get the rkey of the post.
     const originalMessage = await interaction.getOriginal();
@@ -30,9 +28,6 @@ async function interactWithPost(source: {interaction?: ComponentInteraction, rke
     }
 
     postCreatorHandle = postSplit[4];
-
-    // Restore the session.
-    actorDID = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
 
   }
 
@@ -55,7 +50,7 @@ async function interactWithPost(source: {interaction?: ComponentInteraction, rke
   }
 
   // Get the CID of the post.
-  const session = await blueskyClient.restore(actorDID);
+  const session = await blueskyClient.restore(actorDID, "auto", {guildID: source.guildID, decryptionPassword: source.decryptionPassword});
   const agent = new Agent(session);
   const postCreatorDID = await blueskyClient.handleResolver.resolve(postCreatorHandle);
   if (!postCreatorDID) {

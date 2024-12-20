@@ -143,7 +143,7 @@ client.on("messageCreate", async (message) => {
           if (match.groups) {
 
             const {rkey, postCreatorHandle} = match.groups;
-            await interactWithPost({rkey, postCreatorHandle, actorDID: did}, "repost");
+            await interactWithPost({rkey, postCreatorHandle, actorDID: did, guildID}, "repost");
             await message.createReaction("♻️");
 
           }
@@ -186,7 +186,7 @@ client.on("messageReactionRemove", async (uncachedMessage, reactor, reaction) =>
               if (match.groups) {
 
                 const {rkey, postCreatorHandle} = match.groups;
-                await interactWithPost({rkey, postCreatorHandle, actorDID: did}, "deleteRepost");
+                await interactWithPost({rkey, postCreatorHandle, actorDID: did, guildID}, "deleteRepost");
 
               }
 

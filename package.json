@@ -18,21 +18,22 @@
   },
   "homepage": "https://github.com/DaDragonDen/postoad#readme",
   "dependencies": {
+    "@atproto-labs/simple-store": "^0.1.1",
     "@atproto/api": "^0.13.20",
     "@atproto/oauth-client-node": "^0.2.4",
+    "argon2": "^0.41.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "mongodb": "^6.12.0",
-    "cors": "^2.8.5",
     "oceanic.js": "^1.11.2"
   },
   "imports": {
     "#utils/*": "./dist/utils/*"
   },
   "devDependencies": {
+    "@atproto/jwk": "^0.1.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
-    "@types/cors": "^2.8.17",
     "@types/node": "^22.10.2"
   }
 }
