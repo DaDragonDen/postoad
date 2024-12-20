@@ -80,7 +80,8 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
       }, {
         $set: {
           encryptedSession,
-          keyID
+          keyID,
+          guildID
         }
       }, {
         upsert: true
