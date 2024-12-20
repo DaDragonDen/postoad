@@ -57,19 +57,12 @@ const forgetSubCommand = new Command({
 
         case "data/forget/confirm": {
 
-          // Delete the guild data.
-          const guildData = await database.collection("guilds").findOneAndDelete({guildID});
-          
           // Delete all sessions.
-          const sessions = await database.collection("sessions").find({guildID}).toArray();
-          for (const sessionData of sessions) {
+          await database.collection("sessions").deleteMany({guildID});
 
-            // Revoke the session.
-            const session = await blueskyClient.restore(sessionData.sub, "auto", {guildID});
-            await session.signOut();
-
-          }
-
+          // Delete the guild data.
+          await database.collection("guilds").deleteOne({guildID});
+          
           // Let the user know.
           await interaction.editOriginal({
             content: "All data deleted.",
