@@ -11,6 +11,7 @@ export interface CommandProperties {
   usesEphemeralMessages?: boolean;
   options?: ApplicationCommandOptionsWithValue[];
   action?: (interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction) => Promise<void>;
+  defaultMemberPermissions?: number;
 }
 
 export default class Command {
@@ -29,6 +30,8 @@ export default class Command {
 
   /** A boolean value on whether other users should be able to see command usage. */
   usesEphemeralMessages: CommandProperties["usesEphemeralMessages"];
+
+  defaultMemberPermissions: CommandProperties["defaultMemberPermissions"] = 32;
 
   /** A list of applicable options. */
   options?: CommandProperties["options"];
@@ -118,6 +121,7 @@ export default class Command {
             type: ApplicationCommandTypes.CHAT_INPUT,
             name: command.name,
             description: command.description,
+            defaultMemberPermissions: `${command.defaultMemberPermissions}`,
             options: command.options ?? []
           }
 
