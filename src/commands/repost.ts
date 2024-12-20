@@ -4,7 +4,7 @@ import repostNowSubCommand from "./repost/now.js";
 
 const repostCommand = new Command({
   name: "repost",
-  description: "Repost something on Bluesky or update auto repost settings.",
+  description: "Repost something on Bluesky or update auto-repost settings.",
   subCommands: [repostNowSubCommand, repostAutoSubCommand]
 });
 

@@ -1,12 +1,10 @@
 import Command from "#utils/Command.js"
-import blueskyClient from "#utils/bluesky-client.js"
 import database from "#utils/mongodb-database.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes } from "oceanic.js";
 
 const forgetSubCommand = new Command({
   name: "forget",
   description: "Request Postoad to delete all guild data and associated accounts from its database.",
-  customIDs: ["confirm"],
   action: async (interaction) => {
 
     // Verify the guild.

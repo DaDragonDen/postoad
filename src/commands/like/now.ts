@@ -2,9 +2,9 @@ import Command from "#utils/Command.js"
 import { ApplicationCommandOptionTypes } from "oceanic.js";
 import interactWithPostNow from "#utils/interact-with-post-now.js";
 
-const repostNowSubCommand = new Command({
+const likeNowSubCommand = new Command({
   name: "now",
-  description: "Repost a post on Bluesky.",
+  description: "Like a post on Bluesky.",
   options: [
     {
       type: ApplicationCommandOptionTypes.STRING,
@@ -14,10 +14,10 @@ const repostNowSubCommand = new Command({
     }
   ],
   async action(interaction) {
-
-    return await interactWithPostNow(interaction, "repost");
+    
+    return await interactWithPostNow(interaction, "like");
 
   }
 });
 
-export default repostNowSubCommand;
+export default likeNowSubCommand;

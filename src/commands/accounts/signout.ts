@@ -6,7 +6,6 @@ import { ApplicationCommandOptionTypes, CommandInteraction, ComponentInteraction
 const signoutSubCommand = new Command({
   name: "signout",
   description: "Disconnect your Bluesky accounts from Postoad.",
-  customIDs: ["accountSelector"],
   async action(interaction) {
 
     // Get the Bluesky accounts.
