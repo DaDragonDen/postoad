@@ -77,8 +77,7 @@ const signoutSubCommand = new Command({
 
       for (const did of dids) {
 
-        const session = await blueskyClient.restore(did, "auto", {guildID});
-        await session.signOut();
+        await database.collection("sessions").deleteOne({sub: did});
 
       }
 
