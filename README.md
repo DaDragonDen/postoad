@@ -4,8 +4,6 @@ A tool that lets Discord server admins easily post to Bluesky without sharing th
 ## Why use Postoad?
 To protect the security of your account, you shouldn't share passwords with your team. If you share them, you risk your account being moderated or deleted. Someone posts some bullshit on behalf of YOU and your reputation is in shambles.
 
-Postoad uses an app password provided by Bluesky, which restricts the ability to delete your account. It's different from your account password because you can easily revoke it. 
-
 ## Features
 * Manage posts and reply to the community from Discord.
 * Approve posts before they are released.
