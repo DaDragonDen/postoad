@@ -1,5 +1,5 @@
 import Command from "#utils/Command.js"
-import likeNowSubCommand from "./repost/now.js";
+import likeNowSubCommand from "./like/now.js";
 
 const repostCommand = new Command({
   name: "like",
