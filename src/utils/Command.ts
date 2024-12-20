@@ -7,7 +7,6 @@ export interface CommandProperties {
   name: string;
   description: string;
   subCommands?: Command[];
-  customIDs?: string[];
   usesEphemeralMessages?: boolean;
   options?: ApplicationCommandOptionsWithValue[];
   action?: (interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction) => Promise<void>;
@@ -24,9 +23,6 @@ export default class Command {
   
   /** A list of applicable sub-commands. */
   subCommands: CommandProperties["subCommands"];
-
-  /* A list of custom IDs used in this command. */
-  customIDs: CommandProperties["customIDs"];
 
   /** A boolean value on whether other users should be able to see command usage. */
   usesEphemeralMessages: CommandProperties["usesEphemeralMessages"];

@@ -4,12 +4,11 @@ import encryptSession from "#utils/encrypt-session.js";
 import getRandomKey from "#utils/get-random-key.js";
 import database from "#utils/mongodb-database.js";
 import { hash, verify } from "argon2";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
+import { CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
 
 const encryptSubCommand = new Command({
   name: "encrypt",
   description: "Change the encryption settings of your guild's Bluesky sessions.",
-  customIDs: ["method"],
   action: async (interaction) => {
 
     // Verify the guild.

@@ -6,7 +6,6 @@ import blueskyClient from "#utils/bluesky-client.js";
 const repostAutoSubCommand = new Command({
   name: "auto",
   description: "Configure auto-repost settings for Bluesky.",
-  customIDs: ["accountSelector"],
   async action(interaction) {
 
     const { guildID } = interaction;

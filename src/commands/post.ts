@@ -8,7 +8,6 @@ import { Did } from "@atproto/oauth-client-node";
 const command = new Command({
   name: "post",
   description: "Post on behalf of a user on Bluesky.",
-  customIDs: ["accountSelector", "contentModal", "submitPost", "cancelPost", "changeAuthor", "changeText"],
   async action(interaction) {
 
     const { guildID } = interaction;
