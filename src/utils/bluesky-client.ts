@@ -5,6 +5,10 @@ import decryptSession from "./decrypt-session.js";
 import encryptSession from "./encrypt-session.js";
 import { NodeOAuthClient } from "./atproto-custom-deps/node-oauth-client.js";
 import getRandomKey from "./get-random-key.js";
+import { ObjectId } from "mongodb";
+import { existsSync, openSync, readFileSync, rmSync, watch, writeFileSync } from "fs";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
 
 // Need some keys? Use this for easy access: 
 // console.log(JSON.stringify((await JoseKey.fromKeyLike((await JoseKey.generateKeyPair()).privateKey))))
@@ -105,7 +109,6 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
         }
       });
     }
-    
   },
   stateStore: {
     get: async (key) => {
@@ -117,6 +120,96 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
     del: async (key) => {
       delete stateStore[key];
     }
+  },
+  async requestLock(name, request) {
+
+    return new Promise((resolve, reject) => {
+
+      // Generate a request ID.
+      const requestID = new ObjectId().toHexString();
+
+      // Create the file if it doesn't exist.
+      const fileName = path.join(dirname(fileURLToPath(import.meta.url)), "request-locks", `${name.replaceAll(":", "")}.json`);
+      let currentRequestListString: string;
+      try {
+
+        writeFileSync(fileName, "[]", {
+          flag: "wx",
+          encoding: "utf8"
+        });
+
+      } catch (error) {
+        
+        if (!(error instanceof Error) || !("code" in error) || error.code !== "EEXIST") {
+
+          reject(error);
+          return;
+
+        }
+
+      } finally {
+
+        currentRequestListString = readFileSync(fileName, "utf8");
+
+      }
+
+      // Listen for request changes.
+      const watcher = watch(fileName, async () => {
+
+        const contents = readFileSync(fileName, "utf8");
+        const requestIDList = JSON.parse(contents) as string[];
+
+        // Ensure that the request is still there.
+        if (!requestIDList.includes(requestID)) {
+
+          reject("Request ID missing");
+          return;
+
+        }
+        
+        // Check if the ID is at the top.
+        if (requestIDList[0] === requestID) {
+
+          // Stop listening to the file.
+          watcher.close();
+
+          // Run the request.
+          try {
+
+            const nextRequest = await request();
+            resolve(nextRequest);
+
+          } catch (error) {
+            
+            reject(error);
+
+          } finally {
+
+            // Let the next request go.
+            requestIDList.shift();
+            if (requestIDList.length === 0) {
+
+              rmSync(fileName);
+
+            } else {
+
+              writeFileSync(fileName, JSON.stringify(requestIDList));
+
+            }
+
+          }
+
+        }
+
+      });
+
+      // Append the request ID to the request list.
+      const currentRequestList = JSON.parse(currentRequestListString);
+      currentRequestList.push(requestID);
+      writeFileSync(fileName, JSON.stringify(currentRequestList));
+
+    });
+
   }
 });
 
