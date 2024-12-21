@@ -127,7 +127,30 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
     }
     
-    if (sessionData.hashedGroupPassword) {
+    if (interaction.data.customID === `${action}/now/accountSelector`) {
+
+      await interaction.deferUpdate();
+      const actorDID = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
+
+      await interaction.editOriginal({
+        components: [
+          {
+            ...originalMessage.components[0],
+            components: [
+              {
+                ...accountSelector,
+                options: accountSelector.options.map((component) => ({
+                  ...component,
+                  default: component.value === actorDID
+                }))
+              }
+            ]
+          },
+          originalMessage.components[1]
+        ]
+      });
+
+    } else if (sessionData.hashedGroupPassword) {
 
       await interaction.createModal({
         customID: `${action}/now/passwordModal`,
