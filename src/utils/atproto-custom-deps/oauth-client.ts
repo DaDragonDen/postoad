@@ -459,7 +459,7 @@ export class OAuthClient extends CustomEventTarget<OAuthClientEventMap> {
         await this.sessionGetter.setStored(tokenSet.sub, {
           dpopKey: stateData.dpopKey,
           tokenSet,
-        }, {...(options ?? {}), stateData})
+        }, {...(options ?? {}), guildID: options?.guildID ?? stateData.appState})
 
         const session = this.createSession(server, tokenSet.sub)
 

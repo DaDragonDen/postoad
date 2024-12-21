@@ -50,7 +50,7 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
       const sessionJSON = JSON.stringify(session);
 
       // Check the type of security the system should use.
-      const guildID = options?.guildID ?? options?.stateData;
+      const guildID = options?.guildID;
       if (!guildID) throw new Error("Guild ID missing."); 
       const guildData = await database.collection("guilds").findOne({guildID});
       let keyID;
