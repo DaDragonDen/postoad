@@ -1,4 +1,4 @@
-import { CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
 import interactWithPost from "./interact-with-post.js";
 import database from "./mongodb-database.js";
 import blueskyClient from "./bluesky-client.js";
@@ -73,6 +73,8 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
     }
 
+    const defaultSession = await database.collection("sessions").findOne({guildID, isDefault: true});
+
     await interaction.editOriginal({
       content: "Which account do you want to use?",
       embeds: [
@@ -92,8 +94,20 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
               options: handlePairs.map(([handle, sub]) => ({
                 label: handle,
                 value: sub,
-                description: sub
+                description: sub,
+                default: sub === defaultSession?.sub
               }))
+            }
+          ]
+        },
+        {
+          type: ComponentTypes.ACTION_ROW,
+          components: [
+            {
+              type: ComponentTypes.BUTTON,
+              customID: `${action}/now/confirm`,
+              label: "Continue",
+              style: ButtonStyles.PRIMARY
             }
           ]
         }
@@ -103,7 +117,9 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
   } else if (interaction instanceof ComponentInteraction) {
 
     // Check if a password is necessary.
-    const actorDID = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
+    const originalMessage = interaction.message;
+    const accountSelector = originalMessage.components[0]?.components[0] as StringSelectMenu;
+    const actorDID = accountSelector.options.find((option) => option.default)?.value;
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
     if (!actorDID || !sessionData) {
 
@@ -132,9 +148,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
         }]
       });
 
-      const originalMessage = await interaction.getOriginal();
-      const stringSelectMenu = originalMessage.components[0]?.components[0] as StringSelectMenu;
-      if (!actorDID || !stringSelectMenu) {
+      if (!actorDID) {
 
         return await error();
 
@@ -152,12 +166,21 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
             ...originalMessage.components[0],
             components: [
               {
-                ...stringSelectMenu,
+                ...accountSelector,
                 disabled: true,
-                options: stringSelectMenu.options.map((component) => ({
+                options: accountSelector.options.map((component) => ({
                   ...component,
                   default: component.value === actorDID
                 }))
+              }
+            ]
+          },
+          {
+            ...originalMessage.components[1],
+            components: [
+              {
+                ...originalMessage.components[1].components[0],
+                disabled: true
               }
             ]
           }
@@ -176,8 +199,9 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     // Check if the guild still has a security level.
     await interaction.deferUpdate();
     const originalMessage = await interaction.getOriginal();
-    const dropdownComponent = originalMessage.components?.[0]?.components[0];
-    const options = "options" in dropdownComponent ? dropdownComponent.options : undefined;
+    const accountSelectorActionRow = originalMessage.components?.[0];
+    const accountSelector = accountSelectorActionRow?.components[0];
+    const options = "options" in accountSelector ? accountSelector.options : undefined;
     const actorDID = options?.find((option) => option.default)?.value;
     const password = interaction.data.components.getTextInput(`${action}/now/password`);
     if (!actorDID || !password) {
@@ -193,8 +217,6 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
       // Check if the password is correct.
       if (!(await verify(sessionData.hashedGroupPassword, password))) {
 
-        const handlePairs = await getHandlePairs();
-
         await interaction.editOriginal({
           embeds: [
             originalMessage.embeds[0],
@@ -205,16 +227,20 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
           ],
           components: [
             {
-              type: ComponentTypes.ACTION_ROW,
+              ...accountSelectorActionRow,
               components: [
                 {
-                  type: ComponentTypes.STRING_SELECT,
-                  customID: `${action}/now/accountSelector`,
-                  options: handlePairs.map(([handle, sub]) => ({
-                    label: handle,
-                    value: sub,
-                    description: sub
-                  }))
+                  ...accountSelector,
+                  disabled: false
+                }
+              ]
+            },
+            {
+              ...originalMessage.components[1],
+              components: [
+                {
+                  ...originalMessage.components[1].components[0],
+                  disabled: false
                 }
               ]
             }
