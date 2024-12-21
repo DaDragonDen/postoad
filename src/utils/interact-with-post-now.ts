@@ -103,15 +103,15 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
   } else if (interaction instanceof ComponentInteraction) {
 
     // Check if a password is necessary.
-    const guildData = await database.collection("guilds").findOne({guildID});
     const actorDID = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
-    if (!actorDID) {
+    const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
+    if (!actorDID || !sessionData) {
 
       return await error();
 
     }
-
-    if (guildData?.encryptionLevel > 0) {
+    
+    if (sessionData.hashedGroupPassword) {
 
       await interaction.createModal({
         customID: `${action}/now/passwordModal`,
@@ -186,12 +186,12 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
     }
 
-    const guildData = await database.collection("guilds").findOne({guildID});
+    const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
     let decryptionPassword;
-    if (guildData && (guildData.encryptionLevel || 0) > 0) {
+    if (sessionData && sessionData.hashedGroupPassword) {
 
       // Check if the password is correct.
-      if (!(await verify(guildData.hashedGroupPassword, password))) {
+      if (!(await verify(sessionData.hashedGroupPassword, password))) {
 
         const handlePairs = await getHandlePairs();
 
@@ -225,7 +225,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
       }
 
-      if (guildData.encryptionLevel > 1) {
+      if (!sessionData.keyID) {
 
         decryptionPassword = password;
 

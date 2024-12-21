@@ -504,12 +504,13 @@ export class OAuthClient extends CustomEventTarget<OAuthClientEventMap> {
     return this.createSession(server, sub, options)
   }
 
-  async revoke(sub: string) {
+  async revoke(sub: string, options: Record<string, unknown> = {}) {
     // sub arg is lightly typed for convenience of library user
     assertAtprotoDid(sub)
 
     const { dpopKey, tokenSet } = await this.sessionGetter.get(sub, {
       allowStale: true,
+      ...options
     })
 
     // NOT using `;(await this.restore(sub, false)).signOut()` because we want
@@ -519,7 +520,7 @@ export class OAuthClient extends CustomEventTarget<OAuthClientEventMap> {
       const server = await this.serverFactory.fromIssuer(tokenSet.iss, dpopKey)
       await server.revoke(tokenSet.access_token)
     } finally {
-      await this.sessionGetter.delStored(sub, new TokenRevokedError(sub))
+      await this.sessionGetter.delStored(sub, {...options, cause: new TokenRevokedError(sub)})
     }
   }
 

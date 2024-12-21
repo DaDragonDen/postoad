@@ -11,6 +11,6 @@ export interface SimpleStore<K extends Key = string, V extends Value = Value> {
    */
   get: (key: K, options?: GetOptions) => Awaitable<undefined | V>
   set: (key: K, value: V, params?: Record<string, unknown>) => Awaitable<void>
-  del: (key: K) => Awaitable<void>
+  del: (key: K, options?: Record<string, unknown>) => Awaitable<void>
   clear?: () => Awaitable<void>
 }

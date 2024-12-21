@@ -57,9 +57,6 @@ const forgetSubCommand = new Command({
 
           // Delete all sessions.
           await database.collection("sessions").deleteMany({guildID});
-
-          // Delete the guild data.
-          await database.collection("guilds").deleteOne({guildID});
           
           // Let the user know.
           await interaction.editOriginal({

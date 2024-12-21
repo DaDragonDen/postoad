@@ -95,7 +95,7 @@ export class OAuthSession {
     } finally {
       await this.sessionGetter.delStored(
         this.sub,
-        new TokenRevokedError(this.sub),
+        {...this.options, cause: new TokenRevokedError(this.sub)},
       )
     }
   }
@@ -153,7 +153,7 @@ export class OAuthSession {
       // a new login (using login_hint)?
       await this.sessionGetter.delStored(
         this.sub,
-        new TokenInvalidError(this.sub),
+        {...this.options, cause: new TokenInvalidError(this.sub)},
       )
     }
 

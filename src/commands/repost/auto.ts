@@ -19,9 +19,11 @@ const repostAutoSubCommand = new Command({
 
       await interaction.defer();
       
-      // Verify that the server encrypts using the system password.
-      const guildData = await database.collection("guilds").findOne({guildID});
-      if (guildData?.encryptionLevel === 2) {
+      // Get system encrypted sessions.
+      const sessions = await database.collection("sessions").find({guildID}).toArray();
+      const systemEncryptedSessions = sessions.filter((session) => session.keyID);
+      let hiddenSessions = sessions.length - systemEncryptedSessions.length;
+      if (systemEncryptedSessions.length === 0) {
 
         await interaction.createFollowup({
           content: "This server has requested for Postoad to encrypt your sessions using a group password. Postoad cannot automatically act on your behalf without your attention. To use this feature, please change your data encryption settings through the **/data encrypt** command."
@@ -33,7 +35,6 @@ const repostAutoSubCommand = new Command({
 
       // Get the accounts that the server can access.
       const handlePairs = [];
-      const sessions = await database.collection("sessions").find({guildID}).toArray();
       for (const sessionData of sessions) {
 
         const {sub} = sessionData;
@@ -50,7 +51,7 @@ const repostAutoSubCommand = new Command({
 
       // Ask the user which user they want to post as.
       await interaction.editOriginal({
-        content: "Configure Postoad's auto-repost settings using the dropdowns. The first dropdown is for selecting an account. The second dropdown is for choosing the channels to listen to.",
+        content: `Configure Postoad's auto-repost settings using the dropdowns.${hiddenSessions ? ` ${hiddenSessions} accounts were hidden because they are encrypted using a group password. In these cases, Postoad cannot automatically act on your behalf without your attention.` : ""}`,
         components: [
           {
             type: ComponentTypes.ACTION_ROW,
@@ -103,15 +104,7 @@ const repostAutoSubCommand = new Command({
       const selectedChannelID = "values" in interaction.data ? interaction.data.values.getChannels()[0]?.id : channelSelectMenu.defaultValues?.[0].id;
       let selectedDID = stringSelectMenu.options.find((option) => option.default)?.value;
 
-      const collection = database.collection<{
-        autoPairs: {
-          [sub: string]: {
-            channelID: string,
-            isLiking?: boolean,
-            isReposting?: boolean
-          }
-        }
-      }>("guilds");
+      const sessionsCollection = database.collection("sessions");
 
       switch (interaction.data.customID) {
 
@@ -130,48 +123,12 @@ const repostAutoSubCommand = new Command({
           }
 
           // Update the settings.
-          const guildData = await collection.findOne({guildID});
-          
           const isEnabling = interaction.data.customID === "repost/auto/enable";
-          if (interaction.data.customID === "repost/auto/enable") {
-
-            await collection.updateOne({guildID}, {
-              $set: {
-                autoPairs: {
-                  [selectedDID]: {
-                    channelID: selectedChannelID,
-                    isReposting: true
-                  }
-                }
-              }
-            });
-
-          } else if (guildData) {
-
-            if (guildData.autoPairs?.[selectedDID]?.isLiking) {
-
-              await collection.updateOne({guildID}, {
-                $set: {
-                  autoPairs: {
-                    [selectedDID]: {
-                      channelID: selectedChannelID,
-                      isReposting: false
-                    }
-                  }
-                }
-              });
-
-            } else {
-
-              await collection.updateOne({guildID}, {
-                $unset: {
-                  [`autoPairs.${selectedDID}`]: 1
-                }
-              });
-
+          await sessionsCollection.updateOne({guildID, sub: selectedDID}, {
+            [isEnabling ? "$addToSet" : "$pull"]: {
+              repostChannelIDs: selectedChannelID,
             }
-
-          }
+          });
 
           // Let the user know.
           const originalMessage = await interaction.getOriginal();
@@ -203,17 +160,8 @@ const repostAutoSubCommand = new Command({
             selectedDID = selectedChannelID ? selectedDID : interaction.data.values.getStrings()[0]; // For some reason, values.getStrings() returns for both string menus and channel menus.
 
             // Check if auto-reposting is enabled.
-            let isAutoRepostingEnabled = false;
-            if (selectedDID && selectedChannelID) {
-    
-              const guildData = await collection.findOne({guildID});
-              if (guildData?.autoPairs) {
-    
-                isAutoRepostingEnabled = Boolean(guildData.autoPairs[selectedDID]);
-    
-              }
-    
-            }
+            const sessionData = await sessionsCollection.findOne({guildID, sub: selectedDID});
+            const isAutoRepostingEnabled = Boolean(sessionData?.repostChannelIDs?.includes(selectedDID));
     
             await interaction.editOriginal({
               components: [
