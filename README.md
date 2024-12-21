@@ -22,11 +22,4 @@ To protect the security of your account, you shouldn't share passwords with your
 You can add our free instance of Postoad to your server through [our official website](https://postoad.beastslash.com). We try to keep it online as much as possible, but we provide no guarantee on uptime or service availability.
 
 ### Self-managed Postoad
-You can host Postoad yourself for extra security. 
-
-If you want to use the code on this repository as-is, you can install Postoad with the following command:
-```
-npm install postoad
-```
-
-If you don't have a dedicated server host, consider using Render for the server hosting. We're not sponsored by them, but we appreciate that they offer free services for developers. Their "Hobby" tier provides 100 GB outbound bandwidth per month — it should be more than enough for the average person.
+You can host Postoad yourself for extra security. Clone this repository, rename `.template.env` to `.env`, and set up your variables. After that, run `npm start` and you're all set.
