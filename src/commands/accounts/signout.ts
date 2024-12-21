@@ -76,7 +76,7 @@ const signoutSubCommand = new Command({
 
       for (const did of dids) {
 
-        await database.collection("sessions").deleteOne({sub: did});
+        await database.collection("sessions").deleteOne({guildID, sub: did});
 
       }
 
