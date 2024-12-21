@@ -129,7 +129,6 @@ const command = new Command({
 
     async function submitPost(interaction: ComponentInteraction | ModalSubmitInteraction, originalResponse: Message, decryptionPassword?: string) {
 
-      await interaction.deferUpdate();
       const originalEmbed = originalResponse?.embeds?.[0];
       const did = originalEmbed?.footer?.text;
       const text = originalEmbed?.description;
@@ -381,6 +380,7 @@ const command = new Command({
 
           } else {
 
+            await interaction.deferUpdate();
             await submitPost(interaction, originalResponse);
             
           }
@@ -410,9 +410,6 @@ const command = new Command({
       switch (interaction.data.customID) {
 
         case "post/passwordModal": {
-
-          // Catch the event.
-          await interaction.deferUpdate();
 
           // Check if the password is correct.
           const guildData = await getGuildData();
