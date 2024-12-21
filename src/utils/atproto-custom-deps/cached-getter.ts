@@ -107,7 +107,7 @@ export class CachedGetter<K extends Key = string, V extends Value = Value> {
               try {
                 const deleteOnError = this.options?.deleteOnError
                 if (await deleteOnError?.(err, key, storedValue)) {
-                  await this.delStored(key, err)
+                  await this.delStored(key, {_cause: err, ...options})
                 }
               } catch (error) {
                 throw new AggregateError(
@@ -120,7 +120,7 @@ export class CachedGetter<K extends Key = string, V extends Value = Value> {
           })
           .then(async (value) => {
             // The value should be stored even is the signal was aborted.
-            await this.setStored(key, value)
+            await this.setStored(key, value, options)
             return { isFresh: true, value }
           })
       })
