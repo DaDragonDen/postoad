@@ -1,7 +1,7 @@
 import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
 import database from "#utils/mongodb-database.js";
-import { CommandInteraction, ComponentTypes } from "oceanic.js";
+import { CommandInteraction, ComponentTypes, StringSelectMenu } from "oceanic.js";
 
 const defaultAccountSubCommand = new Command({
   name: "default",
@@ -37,6 +37,7 @@ const defaultAccountSubCommand = new Command({
       }
 
       // Ask the user which accounts they want to remove.
+      const defaultSessionData = sessions.find((sessionData) => sessionData.isDefault);
       await interaction.editOriginal({
         content: "Which account do you want Postoad to use by default?",
         components: [
@@ -46,10 +47,12 @@ const defaultAccountSubCommand = new Command({
               {
                 type: ComponentTypes.STRING_SELECT,
                 customID: "accounts/default/accountSelector",
+                minValues: 0,
                 options: handlePairs.map(([handle, sub]) => ({
                   label: handle,
                   value: sub,
                   description: sub,
+                  default: defaultSessionData?.sub === sub
                 }))
               }
             ]
@@ -59,30 +62,87 @@ const defaultAccountSubCommand = new Command({
 
     } else {
 
+      // Make sure a DID was provided.
       await interaction.deferUpdate();
+      const accountSelectorActionList = interaction.message?.components[0];
+      const accountSelector = accountSelectorActionList?.components[0] as StringSelectMenu;
+      const did = "values" in interaction.data ? interaction.data.values.getStrings()[0] : [];
+      if (!accountSelectorActionList || !accountSelector) {
 
-      // const dids = "values" in interaction.data ? interaction.data.values.getStrings() : [];
-      // if (!dids[0]) {
+        await interaction.editOriginal({
+          content: "Something bad happened. Please try again later.",
+          components: []
+        });
 
-      //   await interaction.editOriginal({
-      //     content: "Something bad happened. Please try again later.",
-      //     components: []
-      //   });
+        return;
 
-      //   return;
+      }      
 
-      // }
+      // Disable the component while we're editing it.
+      const options = accountSelector.options.map((option) => ({
+        ...option,
+        default: option.value === did
+      }));
+      await interaction.editOriginal({
+        components: [
+          {
+            ...accountSelectorActionList,
+            components: [
+              {
+                ...accountSelector,
+                disabled: true,
+                options
+              }
+            ]
+          }
+        ]
+      });
 
-      // for (const did of dids) {
+      // Remove the old default.
+      const sessionsCollection = database.collection("sessions");
+      await sessionsCollection.updateMany(
+        {
+          guildID,
+          isDefault: true
+        }, 
+        {
+          $unset: {
+            isDefault: 1
+          }
+        }
+      )
 
-      //   await database.collection("sessions").deleteOne({sub: did});
+      // Set the new default.
+      if (did) {
 
-      // }
+        await sessionsCollection.updateOne(
+          {
+            guildID, 
+            sub: did
+          },
+          {
+            $set: {
+              isDefault: true
+            }
+          }
+        );
 
-      // await interaction.editOriginal({
-      //   content: `Successfully signed out of ${dids.length} account${dids.length > 1 ? "s" : ""}.`,
-      //   components: []
-      // })
+      }
+
+      // Let the user change the account again.
+      await interaction.editOriginal({
+        components: [
+          {
+            ...accountSelectorActionList,
+            components: [
+              {
+                ...accountSelector,
+                options
+              }
+            ]
+          }
+        ]
+      });
 
     }
 
