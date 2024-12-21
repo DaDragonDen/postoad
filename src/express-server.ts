@@ -16,50 +16,61 @@ app.get("/", (_request, response) => {
 
 app.post("/callback", async (request, response) => {
 
-  // Ensure that there's a code.
-  const {code, state, iss} = request.query;
-  if (typeof(code) !== "string") {
+  try {
 
-    response.status(400).json({
-      message: "An authorization code is required."
-    });
+    // Ensure that there's a code.
+    const {code, state, iss} = request.query;
+    if (typeof(code) !== "string") {
 
-    return;
+      response.status(400).json({
+        message: "An authorization code is required."
+      });
 
-  }
+      return;
 
-  // Ensure that there's a state.
-  if (typeof(state) !== "string") {
+    }
 
-    response.status(400).json({
-      message: "A valid state is required."
-    });
+    // Ensure that there's a state.
+    if (typeof(state) !== "string") {
+
+      response.status(400).json({
+        message: "A valid state is required."
+      });
+      
+      return;
+
+    }
     
-    return;
+    if (typeof(iss) !== "string") {
 
-  }
-  
-  if (typeof(iss) !== "string") {
+      response.status(400).json({
+        message: "A valid issuer is required."
+      });
+      
+      return;
 
-    response.status(400).json({
-      message: "A valid issuer is required."
+    }
+
+    // Verify that Postoad has access to the account.
+    const urlSearchParams = new URLSearchParams();
+    urlSearchParams.set("iss", iss);
+    urlSearchParams.set("code", code);
+    urlSearchParams.set("state", state as string);
+
+    // Pair the session with the guild.
+    await blueskyClient.callback(urlSearchParams);
+
+    // Add the session data to the database.
+    response.status(201).json({});
+
+  } catch (error) {
+
+    console.error(error);
+    response.status(500).json({
+      message: "Internal server error. Please try again later."
     });
-    
-    return;
 
   }
-
-  // Verify that Postoad has access to the account.
-  const urlSearchParams = new URLSearchParams();
-  urlSearchParams.set("iss", iss);
-  urlSearchParams.set("code", code);
-  urlSearchParams.set("state", state as string);
-
-  // Pair the session with the guild.
-  await blueskyClient.callback(urlSearchParams);
-
-  // Add the session data to the database.
-  response.status(201).json({});
 
 });
 
