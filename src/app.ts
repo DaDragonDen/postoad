@@ -3,6 +3,20 @@ import { ButtonStyles, Client, ComponentTypes, InteractionTypes } from "oceanic.
 import "./express-server.js";
 import database from "#utils/mongodb-database.js";
 import interactWithPost from "#utils/interact-with-post.js";
+import { existsSync, mkdirSync, rmSync } from "fs";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+
+// Clear all request locks.
+const requestLocksPath = path.join(dirname(fileURLToPath(import.meta.url)), "utils", "request-locks");
+if (existsSync(requestLocksPath)) {
+
+  rmSync(requestLocksPath, { recursive: true, force: true });
+
+}
+
+mkdirSync(requestLocksPath);
+console.log("[Postoad] Emptied request-locks folder.");
 
 // Sign into Discord.
 const client = new Client({

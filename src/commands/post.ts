@@ -1,9 +1,11 @@
 import Command from "#utils/Command.js"
 import { Agent } from "@atproto/api";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, InteractionContent, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, InteractionContent, Message, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
 import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
 import { Did } from "@atproto/oauth-client-node";
+import { verify } from "argon2";
+import { OAuthResponseError } from "#utils/atproto-custom-deps/oauth-response-error";
 
 const command = new Command({
   name: "post",
@@ -60,7 +62,7 @@ const command = new Command({
 
     }
 
-    async function promptConfirmation(newPostContent: string | undefined, shouldUseEmbedDescription: boolean) {
+    async function promptConfirmation(newPostContent: string | undefined, shouldUseEmbedDescription: boolean, didUserUseIncorrectPassword?: boolean) {
       
       const originalResponse = await interaction.getOriginal();
       const originalEmbed = originalResponse?.embeds?.[0];
@@ -81,7 +83,13 @@ const command = new Command({
                 value: attachmentSources
               }
             ]
-          }
+          }, 
+          ... didUserUseIncorrectPassword ? [
+            {
+              color: 15548997,
+              description: "❌ Incorrect password..."
+            }
+          ] : []
         ],
         components: [
           {
@@ -115,6 +123,127 @@ const command = new Command({
             ]
           }
         ]
+      });
+
+    }
+
+    async function submitPost(interaction: ComponentInteraction | ModalSubmitInteraction, originalResponse: Message, decryptionPassword?: string) {
+
+      const originalEmbed = originalResponse?.embeds?.[0];
+      const did = originalEmbed?.footer?.text;
+      const text = originalEmbed?.description;
+      if (!did) {
+
+        return await error();
+
+      }
+
+      const session = await blueskyClient.restore(did, "auto", {guildID, decryptionPassword});
+      const agent = new Agent(session);
+      
+      // Try to get images and videos from attachment sources.
+      const attachmentSourceJumpLink = originalEmbed.fields?.[0].value;
+      const blobsWithAltText: [Blob, string?][] = [];
+      let mode: "image" | "video" = "image";
+      if (attachmentSourceJumpLink && !attachmentSourceJumpLink.includes("-#")) {
+
+        // 
+        const attachmentSourceJumpLinkSplits = attachmentSourceJumpLink.split("/");
+        const channelID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 2];
+        const messageID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 1];
+        const message = await interaction.client.rest.channels.getMessage(channelID, messageID);
+        for (const attachment of message.attachments.filter(() => true)) {
+
+          const response = await fetch(attachment.url);
+          if (!response.ok) {
+
+            
+
+          }
+
+          const blob = await response.blob();
+          const altText = attachment.description;
+          blobsWithAltText.push([blob, altText]);
+
+          if (attachment.contentType?.includes("video")) {
+
+            mode = "video";
+
+          }
+
+        }
+
+      }
+
+      // Verify that there is at least text or media.
+      if (!blobsWithAltText[0] && !text) {
+
+        const originalComponent = originalResponse.components?.[0];
+
+        if (!originalComponent) return;
+
+        await interaction.editOriginal({
+          components: [
+            {
+              ...originalComponent,
+              components: originalComponent.components.map((component, index) => index === 0 ? {
+                type: ComponentTypes.BUTTON,
+                customID: "post/submitPost",
+                style: ButtonStyles.PRIMARY,
+                label: "Submit post",
+                disabled: true
+              } : component)
+            }
+          ]
+        });
+
+        return;
+
+      }
+
+      const media = [];
+      for (const blob of blobsWithAltText) {
+
+        const {data} = await agent.uploadBlob(blob[0]);
+        media.push({
+          alt: blob[1] ?? "",
+          [mode === "video" ? "video" : "image"]: data.blob
+        });
+
+      }
+
+      // Post to Bluesky.
+      const post = await agent.post({
+        text: text ?? "", 
+        embed: mode === "video" ? {
+          $type: "app.bsky.embed.video",
+          ...media[0]
+        } : {
+          $type: "app.bsky.embed.images",
+          images: media
+        }
+      });
+
+      // Give the link to the user.
+      const uriSplits = post.uri.split("/");
+      const postID = uriSplits[uriSplits.length - 1];
+
+      await interaction.editOriginal({
+        content: `Posted. https://bsky.app/profile/${did}/post/${postID}`,
+        embeds: [],
+        components: []
+      });
+
+    }
+
+    const getGuildData = async () => await database.collection("guilds").findOne({guildID});
+
+    async function error() {
+
+      await interaction.editOriginal({
+        content: "Something bad happened. Try again later.",
+        embeds: [],
+        components: []
       });
 
     }
@@ -174,13 +303,7 @@ const command = new Command({
             handle = (await blueskyClient.didResolver.resolve(did as Did)).alsoKnownAs?.[0].replace("at://", "");
             if (!did) {
 
-              await interaction.editOriginal({
-                content: "Something bad happened. Try again later.",
-                embeds: [],
-                components: []
-              });
-
-              return;
+              return await error();
 
             }
             
@@ -207,120 +330,60 @@ const command = new Command({
 
         case "post/submitPost": {
 
-          await interaction.deferUpdate();
-
           // Create a Bluesky client based on the ID.
-          const originalResponse = await interaction.getOriginal();
-          const originalEmbed = originalResponse?.embeds?.[0];
-          const did = originalEmbed?.footer?.text;
-          const text = originalEmbed?.description;
-          if (!did) {
+          const originalResponse = interaction.message;
 
-            await interaction.editOriginal({
-              content: "Something bad happened. Try again later.",
-              embeds: [],
-              components: []
+          // Check if the client requires a group password.
+          const guildData = await getGuildData();
+          if (guildData?.hashedGroupPassword) {
+
+            // Ask the user for the password.
+            await interaction.createModal({
+              customID: "post/passwordModal",
+              title: "Enter your Postoad group password",
+              components: [{
+                type: ComponentTypes.ACTION_ROW,
+                components: [
+                  {
+                    type: ComponentTypes.TEXT_INPUT,
+                    label: "Current Postoad group password",
+                    customID: "post/password",
+                    style: TextInputStyles.SHORT,
+                    maxLength: 128,
+                    minLength: 8,
+                    required: true
+                  }
+                ]
+              }]
             });
-            
-            return;
 
-          }
-          
-          const session = await blueskyClient.restore(did, "auto", {guildID});
-          const agent = new Agent(session);
-          
-          // Try to get images and videos from attachment sources.
-          const attachmentSourceJumpLink = originalEmbed.fields?.[0].value;
-          const blobsWithAltText: [Blob, string?][] = [];
-          let mode: "image" | "video" = "image";
-          if (attachmentSourceJumpLink && !attachmentSourceJumpLink.includes("-#")) {
-
-            // 
-            const attachmentSourceJumpLinkSplits = attachmentSourceJumpLink.split("/");
-            const channelID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 2];
-            const messageID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 1];
-            const message = await interaction.client.rest.channels.getMessage(channelID, messageID);
-            for (const attachment of message.attachments.filter(() => true)) {
-
-              const response = await fetch(attachment.url);
-              if (!response.ok) {
-
-                
-
-              }
-
-              const blob = await response.blob();
-              const altText = attachment.description;
-              blobsWithAltText.push([blob, altText]);
-
-              if (attachment.contentType?.includes("video")) {
-
-                mode = "video";
-
-              }
-
-            }
-
-          }
-
-          // Verify that there is at least text or media.
-          if (!blobsWithAltText[0] && !text) {
-
+            // Let the user know that we're authenticating them.
+            // Disable the buttons so nothing breaks.
             const originalComponent = originalResponse.components?.[0];
-
-            if (!originalComponent) return;
-
             await interaction.editOriginal({
+              embeds: [
+                originalResponse.embeds[0],
+                {
+                  description: "Authenticating..."
+                }
+              ],
               components: [
                 {
                   ...originalComponent,
-                  components: originalComponent.components.map((component, index) => index === 0 ? {
-                    type: ComponentTypes.BUTTON,
-                    customID: "post/submitPost",
-                    style: ButtonStyles.PRIMARY,
-                    label: "Submit post",
+                  components: originalComponent.components.map((component) => ({
+                    ...component,
                     disabled: true
-                  } : component)
+                  }))
                 }
               ]
-            });
+            })
 
-            return;
+          } else {
 
+            await interaction.deferUpdate();
+            await submitPost(interaction, originalResponse);
+            
           }
-
-          const media = [];
-          for (const blob of blobsWithAltText) {
-
-            const {data} = await agent.uploadBlob(blob[0]);
-            media.push({
-              alt: blob[1] ?? "",
-              [mode === "video" ? "video" : "image"]: data.blob
-            });
-
-          }
-
-          // Post to Bluesky.
-          const post = await agent.post({
-            text: text ?? "", 
-            embed: mode === "video" ? {
-              $type: "app.bsky.embed.video",
-              ...media[0]
-            } : {
-              $type: "app.bsky.embed.images",
-              images: media
-            }
-          });
-
-          // Give the link to the user.
-          const uriSplits = post.uri.split("/");
-          const postID = uriSplits[uriSplits.length - 1];
-
-          await interaction.editOriginal({
-            content: `Posted. https://bsky.app/profile/${did}/post/${postID}`,
-            embeds: [],
-            components: []
-          });
 
           break;
 
@@ -344,9 +407,52 @@ const command = new Command({
     } else if (interaction instanceof ModalSubmitInteraction) {
 
       await interaction.deferUpdate();
-      const postContent = interaction.data.components.getTextInput("post/content");
-      await promptConfirmation(postContent, false);
+      switch (interaction.data.customID) {
 
+        case "post/passwordModal": {
+
+          // Check if the password is correct.
+          const guildData = await getGuildData();
+          const password = interaction.data.components.getTextInput("post/password");
+          const isPasswordCorrect = !guildData || !guildData.hashedGroupPassword || (password && await verify(guildData.hashedGroupPassword, password));
+          const originalResponse = await interaction.getOriginal();
+          if (guildData && isPasswordCorrect) {
+
+            const originalEmbed = originalResponse?.embeds?.[0];
+            const did = originalEmbed?.footer?.text;
+            if (!did) {
+
+              return await error();
+
+            }
+
+            await submitPost(interaction, originalResponse, guildData.encryptionLevel > 1 ? password : undefined);
+            
+          } else {
+
+            // Re-enable the components and tell the user that the password was incorrect.
+            await promptConfirmation(undefined, true, true);
+
+          }
+          
+          break;
+
+        }
+
+        case "post/contentModal": {
+
+          const postContent = interaction.data.components.getTextInput("post/content");
+          await promptConfirmation(postContent, false);
+
+          break;
+
+        }
+
+        default:
+          break;
+
+      }
+      
     }
 
   }
