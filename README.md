@@ -6,10 +6,9 @@ To protect the security of your account, you shouldn't share passwords with your
 
 ## Features
 * Manage posts and reply to the community from Discord.
-* Approve posts before they are released.
 * Automatically post text and media from a Discord channel.
 * Like and repost Bluesky posts from Discord.
-* Optionally require 2FA and an administrator password to interact with accounts.
+* Optionally require 2FA and a group password to interact with accounts.
 
 ## Security considerations
 * Sessions are encrypted with a system password by default, but they can be further secured with an administrator password. In this case, it means that Da Dragon Den, Beastslash, or any other Postoad server host cannot act on your behalf without knowing your administrator password.
