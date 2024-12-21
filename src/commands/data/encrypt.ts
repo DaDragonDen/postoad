@@ -318,8 +318,8 @@ const encryptSubCommand = new Command({
               ...accountSelectMenuActionRow,
               components: [
                 {
-                  disabled: false,
-                  ...accountSelectMenu
+                  ...accountSelectMenu,
+                  disabled: false
                 }
               ]
             },
@@ -327,8 +327,8 @@ const encryptSubCommand = new Command({
               ...securitySelectMenuActionRow,
               components: [
                 {
-                  disabled: false,
                   ...securitySelectMenu,
+                  disabled: false,
                   options: securitySelectMenu.options.map((option) => ({
                     ...option,
                     default: option.value === `${currentSecurityLevel}`

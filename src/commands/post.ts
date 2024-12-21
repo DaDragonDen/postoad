@@ -1,6 +1,6 @@
 import Command from "#utils/Command.js"
 import { Agent } from "@atproto/api";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, Message, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, Message, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
 import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
 import { Did } from "@atproto/oauth-client-node";
@@ -22,6 +22,7 @@ const command = new Command({
     async function promptUserSelection(guildID: string) {
 
       // Get the accounts that the server can access.
+      const possibleDefaultSession = await sessionsCollection.findOne({guildID, isDefault: true});
       const handlePairs = await getHandlePairs(guildID);
 
       if (!handlePairs[0]) {
@@ -32,20 +33,35 @@ const command = new Command({
 
       // Ask the user which user they want to post as.
       const originalMessage = await interaction.getOriginal();
+      const originalEmbed = originalMessage.embeds?.[0];
       await interaction.editOriginal({
         content: "Which user do you want to post as?",
+        embeds: originalEmbed ? [originalEmbed] : undefined,
         components: [
           {
             type: ComponentTypes.ACTION_ROW,
             components: [
               {
                 type: ComponentTypes.STRING_SELECT,
-                customID: `post/accountSelector${originalMessage.embeds[0] ? "Update" : ""}`,
+                customID: `post/accountSelectorChoose`,
                 options: handlePairs.map(([handle, sub]) => ({
                   label: handle,
                   value: sub,
-                  description: sub
+                  description: sub,
+                  default: (originalEmbed ? originalEmbed.footer?.text : possibleDefaultSession?.sub) === sub
                 }))
+              }
+            ],
+          },
+          {
+            type: ComponentTypes.ACTION_ROW,
+            components: [
+              {
+                customID: `post/accountSelector${originalMessage.embeds[0] ? "Update" : ""}`,
+                type: ComponentTypes.BUTTON,
+                label: "Continue",
+                style: ButtonStyles.PRIMARY,
+                disabled: !possibleDefaultSession
               }
             ]
           }
@@ -238,12 +254,72 @@ const command = new Command({
 
     }
 
-    const getSessionData = async () => await database.collection("sessions").findOne({guildID});
+    const sessionsCollection = database.collection("sessions");
+    const getSessionData = async (did: string) => await sessionsCollection.findOne({guildID, sub: did});
+
+    async function promptChangeText(interaction: ComponentInteraction) {
+
+      // Send the modal first because Discord wants an initial response.
+      await interaction.createModal({
+        customID: "post/contentModal",
+        title: "Create a post on Bluesky",
+        components: [{
+          type: ComponentTypes.ACTION_ROW,
+          components: [
+            {
+              type: ComponentTypes.TEXT_INPUT,
+              label: "Post content",
+              customID: "post/content",
+              style: TextInputStyles.PARAGRAPH,
+              maxLength: 300,
+              required: false
+            }
+          ]
+        }]
+      });
+
+      // Update the message.
+      const originalResponse = await interaction.getOriginal();
+      const originalEmbed = originalResponse.embeds?.[0];
+      let handle;
+      let did = originalEmbed?.footer?.text;
+      if (interaction.isComponentInteraction() && interaction.data.customID === "post/accountSelector") {
+
+        const accountSelector = interaction.message?.components[0].components[0] as StringSelectMenu;
+        did = accountSelector.options.find((option) => option.default)?.value ?? did;
+        handle = (await blueskyClient.didResolver.resolve(did as Did)).alsoKnownAs?.[0].replace("at://", "");
+        
+      }
+
+      if (!did) {
+
+        return await error();
+
+      }
+
+      await interaction.editOriginal({
+        content: "What do you want the message to say? Respond in the modal.",
+        embeds: handle && did ? [
+          {
+            author: {
+              name: handle
+            },
+            footer: {
+              text: did
+            }
+          }
+        ] : originalResponse.embeds,
+        components: []
+      });
+
+    }
 
     if (interaction instanceof CommandInteraction) {
 
       await interaction.defer();
       await promptUserSelection(guildID);
+
+      return;
 
     } else if (interaction instanceof ComponentInteraction) {
 
@@ -254,10 +330,59 @@ const command = new Command({
           await promptConfirmation(undefined, true);
           break;
 
+        case "post/accountSelectorChoose":
+          await interaction.deferUpdate();
+
+          const originalEmbed = interaction.message?.embeds?.[0];
+          const accountSelectorActionRow = interaction.message?.components[0];
+          const accountSelector = accountSelectorActionRow.components[0] as StringSelectMenu;
+          const selectedDID = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
+          const continueButtonActionRow = interaction.message.components[1];
+          const options = accountSelector.options.map((option) => ({
+            ...option,
+            default: option.value === selectedDID
+          }));
+          const selectedOption = options.find((option) => option.default);
+
+          await interaction.editOriginal({
+            ... originalEmbed && selectedOption ? {
+              embeds: [{
+                ...originalEmbed, 
+                author: {
+                  name: selectedOption.label
+                },
+                footer: {
+                  text: selectedOption.value
+                }
+              }]
+            } : {},
+            components: [
+              {
+                ...accountSelectorActionRow,
+                components: [
+                  {
+                    ...accountSelector,
+                    options
+                  }
+                ]
+              },
+              {
+                ...continueButtonActionRow,
+                components: [
+                  {
+                    ...continueButtonActionRow.components[0],
+                    disabled: !selectedDID
+                  }
+                ]
+              }
+            ]
+          });
+          break;
+
         case "post/changeAuthor": {
 
           await interaction.deferUpdate();
-          promptUserSelection(guildID);
+          await promptUserSelection(guildID);
           break;
 
         }
@@ -265,57 +390,7 @@ const command = new Command({
         case "post/changeText":
         case "post/accountSelector": {
 
-          // Send the modal first because Discord wants an initial response.
-          await interaction.createModal({
-            customID: "post/contentModal",
-            title: "Create a post on Bluesky",
-            components: [{
-              type: ComponentTypes.ACTION_ROW,
-              components: [
-                {
-                  type: ComponentTypes.TEXT_INPUT,
-                  label: "Post content",
-                  customID: "post/content",
-                  style: TextInputStyles.PARAGRAPH,
-                  maxLength: 300,
-                  required: false
-                }
-              ]
-            }]
-          });
-
-          // Update the message.
-          const originalResponse = await interaction.getOriginal();
-          const originalEmbed = originalResponse.embeds?.[0];
-          let handle;
-          let did;
-          if (interaction.data.customID === "post/accountSelector") {
-
-            did = "values" in interaction.data ? interaction.data.values.getStrings().join() : originalEmbed?.footer?.text;
-            handle = (await blueskyClient.didResolver.resolve(did as Did)).alsoKnownAs?.[0].replace("at://", "");
-            if (!did) {
-
-              return await error();
-
-            }
-            
-          }
-
-          await interaction.editOriginal({
-            content: "What do you want the message to say? Respond in the modal.",
-            embeds: handle && did ? [
-              {
-                author: {
-                  name: handle
-                },
-                footer: {
-                  text: did
-                }
-              }
-            ] : originalResponse.embeds,
-            components: []
-          });
-
+          await promptChangeText(interaction);
           break;
 
         }
@@ -324,9 +399,15 @@ const command = new Command({
 
           // Create a Bluesky client based on the ID.
           const originalResponse = interaction.message;
+          const did = interaction.message.embeds[0]?.footer?.text;
+          if (!did) {
+
+            return await error();
+
+          }
 
           // Check if the client requires a group password.
-          const sessionData = await getSessionData();
+          const sessionData = await getSessionData(did);
           if (sessionData?.hashedGroupPassword) {
 
             // Ask the user for the password.
@@ -403,20 +484,21 @@ const command = new Command({
 
         case "post/passwordModal": {
 
+          // Make sure we still have a DID.
+          const originalResponse = await interaction.getOriginal();
+          const originalEmbed = originalResponse?.embeds?.[0];
+          const did = originalEmbed?.footer?.text;
+          if (!did) {
+
+            return await error();
+
+          }
+
           // Check if the password is correct.
-          const sessionData = await getSessionData();
+          const sessionData = await getSessionData(did);
           const password = interaction.data.components.getTextInput("post/password");
           const isPasswordCorrect = !sessionData || !sessionData.hashedGroupPassword || (password && await verify(sessionData.hashedGroupPassword, password));
-          const originalResponse = await interaction.getOriginal();
           if (sessionData && isPasswordCorrect) {
-
-            const originalEmbed = originalResponse?.embeds?.[0];
-            const did = originalEmbed?.footer?.text;
-            if (!did) {
-
-              return await error();
-
-            }
 
             await submitPost(interaction, originalResponse, !sessionData.keyID ? password : undefined);
             
