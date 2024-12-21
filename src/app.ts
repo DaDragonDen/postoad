@@ -141,29 +141,24 @@ client.on("messageCreate", async (message) => {
   const guildID = "guildID" in channel ? channel.guildID : undefined;
   if (!guildID) return;
 
-  const guildData = await database.collection("guilds").findOne({guildID});
-  const autoPairs = guildData?.autoPairs;
-  if (autoPairs) {
+  const sessionDataList = await database.collection("sessions").find({
+    guildID, 
+    repostChannelIDs: "parentID" in channel ? channel.parentID : channel.id
+  }).toArray();
 
-    for (const did of Object.keys(autoPairs)) {
+  for (const sessionData of sessionDataList) {
 
-      if (autoPairs[did]?.isReposting && (autoPairs[did].channelID === message.channelID || ("parentID" in channel && autoPairs[did].channelID === channel.parentID))) {
+    // Check if the user added a Bluesky post.
+    const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
+    const matches = [...message.content.matchAll(matchingRegex)];
+    for (const match of matches) {
 
-        // Check if the user added a Bluesky post.
-        const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
-        const matches = [...message.content.matchAll(matchingRegex)];
-        for (const match of matches) {
+      if (match.groups) {
 
-          if (match.groups) {
+        const {rkey, postCreatorHandle} = match.groups;
+        await interactWithPost({rkey, postCreatorHandle, actorDID: sessionData.sub, guildID}, "repost");
+        await message.createReaction("♻️");
 
-            const {rkey, postCreatorHandle} = match.groups;
-            await interactWithPost({rkey, postCreatorHandle, actorDID: did, guildID}, "repost");
-            await message.createReaction("♻️");
-
-          }
-
-        }
-    
       }
 
     }
@@ -183,33 +178,28 @@ client.on("messageReactionRemove", async (uncachedMessage, reactor, reaction) =>
       const channel = await client.rest.channels.get(message.channelID);
       const guildID = "guildID" in channel ? channel.guildID : undefined;
       if (!guildID) return;
-      
-      const guildData = await database.collection("guilds").findOne({guildID});
-      const autoPairs = guildData?.autoPairs;
-      if (autoPairs) {
 
-        for (const did of Object.keys(autoPairs)) {
-
-          if (autoPairs[did]?.isReposting && (autoPairs[did].channelID === message.channelID || ("parentID" in channel && autoPairs[did].channelID === channel.parentID))) {
-
-            // Check if the user added a Bluesky post.
-            const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
-            const matches = [...message.content.matchAll(matchingRegex)];
-            for (const match of matches) {
-
-              if (match.groups) {
-
-                const {rkey, postCreatorHandle} = match.groups;
-                await interactWithPost({rkey, postCreatorHandle, actorDID: did, guildID}, "deleteRepost");
-
-              }
-
-            }
-        
+      const sessionDataList = await database.collection("sessions").find({
+        guildID, 
+        repostChannelIDs: "parentID" in channel ? channel.parentID : channel.id
+      }).toArray();
+    
+      for (const sessionData of sessionDataList) {
+    
+        // Check if the user added a Bluesky post.
+        const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
+        const matches = [...message.content.matchAll(matchingRegex)];
+        for (const match of matches) {
+    
+          if (match.groups) {
+    
+            const {rkey, postCreatorHandle} = match.groups;
+            await interactWithPost({rkey, postCreatorHandle, actorDID: sessionData.sub, guildID}, "deleteRepost");
+    
           }
-
+    
         }
-
+    
       }
 
     }

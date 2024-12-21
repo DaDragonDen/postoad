@@ -56,10 +56,10 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
       // Check the type of security the system should use.
       const guildID = options?.guildID;
       if (!guildID) throw new Error("Guild ID missing."); 
-      const guildData = await database.collection("guilds").findOne({guildID});
+      const sessionData = await database.collection("sessions").findOne({guildID, sub});
       let keyID;
       let encryptedSession;
-      if (guildData && guildData.encryptionLevel === 2) {
+      if (sessionData && !sessionData.keyID) {
 
         if (typeof(options?.encryptionKey) !== "string") {
 
@@ -92,23 +92,15 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
       });
 
     },
-    del: async (sub) => {
+    del: async (sub, options) => {
 
+      // Check for a guild ID.
+      const guildID = options?.guildID;
+      if (!guildID) throw new Error("Guild ID missing.");
+      
       // Delete the session based on the sub.
-      await database.collection("sessions").deleteOne({sub});
-      await database.collection<{
-        subs: string[]
-      }>("guilds").updateMany({
-        subs: {
-          $in: [sub]
-        }
-      }, {
-        $pull: {
-          subs: {
-            $in: [sub]
-          }
-        }
-      });
+      await database.collection("sessions").deleteOne({sub, guildID});
+
     }
   },
   stateStore: {

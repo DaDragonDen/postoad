@@ -216,9 +216,9 @@ export class SessionGetter extends CachedGetter<AtprotoDid, Session> {
     this.dispatchEvent('updated', { sub, ...session })
   }
 
-  override async delStored(sub: AtprotoDid, cause?: unknown): Promise<void> {
-    await super.delStored(sub, cause)
-    this.dispatchEvent('deleted', { sub, cause })
+  override async delStored(sub: AtprotoDid, options: Record<string, unknown> & {cause?: unknown}): Promise<void> {
+    await super.delStored(sub, options)
+    this.dispatchEvent('deleted', { sub, cause: options.cause })
   }
 
   /**

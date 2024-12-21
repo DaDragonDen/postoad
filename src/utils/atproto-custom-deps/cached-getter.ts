@@ -163,7 +163,7 @@ export class CachedGetter<K extends Key = string, V extends Value = Value> {
     }
   }
 
-  async delStored(key: K, _cause?: unknown): Promise<void> {
-    await this.store.del(key)
+  async delStored(key: K, options: Record<string, unknown> & {_cause?: unknown}): Promise<void> {
+    await this.store.del(key, options)
   }
 }

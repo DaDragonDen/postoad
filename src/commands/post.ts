@@ -1,11 +1,11 @@
 import Command from "#utils/Command.js"
 import { Agent } from "@atproto/api";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, InteractionContent, Message, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, Message, ModalSubmitInteraction, TextInputStyles } from "oceanic.js";
 import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
 import { Did } from "@atproto/oauth-client-node";
 import { verify } from "argon2";
-import { OAuthResponseError } from "#utils/atproto-custom-deps/oauth-response-error";
+import getHandlePairs from "#utils/get-handle-pairs.js";
 
 const command = new Command({
   name: "post",
@@ -19,18 +19,10 @@ const command = new Command({
 
     }
 
-    async function promptUserSelection() {
+    async function promptUserSelection(guildID: string) {
 
       // Get the accounts that the server can access.
-      const sessions = await database.collection("sessions").find({guildID}).toArray();
-      const handlePairs = [];
-      for (const session of sessions) {
-
-        const {sub} = session;
-        const handle = await blueskyClient.didResolver.resolve(sub);
-        handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-      }
+      const handlePairs = await getHandlePairs(guildID);
 
       if (!handlePairs[0]) {
 
@@ -236,8 +228,6 @@ const command = new Command({
 
     }
 
-    const getGuildData = async () => await database.collection("guilds").findOne({guildID});
-
     async function error() {
 
       await interaction.editOriginal({
@@ -248,10 +238,12 @@ const command = new Command({
 
     }
 
+    const getSessionData = async () => await database.collection("sessions").findOne({guildID});
+
     if (interaction instanceof CommandInteraction) {
 
       await interaction.defer();
-      await promptUserSelection();
+      await promptUserSelection(guildID);
 
     } else if (interaction instanceof ComponentInteraction) {
 
@@ -265,7 +257,7 @@ const command = new Command({
         case "post/changeAuthor": {
 
           await interaction.deferUpdate();
-          promptUserSelection();
+          promptUserSelection(guildID);
           break;
 
         }
@@ -334,8 +326,8 @@ const command = new Command({
           const originalResponse = interaction.message;
 
           // Check if the client requires a group password.
-          const guildData = await getGuildData();
-          if (guildData?.hashedGroupPassword) {
+          const sessionData = await getSessionData();
+          if (sessionData?.hashedGroupPassword) {
 
             // Ask the user for the password.
             await interaction.createModal({
@@ -412,11 +404,11 @@ const command = new Command({
         case "post/passwordModal": {
 
           // Check if the password is correct.
-          const guildData = await getGuildData();
+          const sessionData = await getSessionData();
           const password = interaction.data.components.getTextInput("post/password");
-          const isPasswordCorrect = !guildData || !guildData.hashedGroupPassword || (password && await verify(guildData.hashedGroupPassword, password));
+          const isPasswordCorrect = !sessionData || !sessionData.hashedGroupPassword || (password && await verify(sessionData.hashedGroupPassword, password));
           const originalResponse = await interaction.getOriginal();
-          if (guildData && isPasswordCorrect) {
+          if (sessionData && isPasswordCorrect) {
 
             const originalEmbed = originalResponse?.embeds?.[0];
             const did = originalEmbed?.footer?.text;
@@ -426,7 +418,7 @@ const command = new Command({
 
             }
 
-            await submitPost(interaction, originalResponse, guildData.encryptionLevel > 1 ? password : undefined);
+            await submitPost(interaction, originalResponse, !sessionData.keyID ? password : undefined);
             
           } else {
 
