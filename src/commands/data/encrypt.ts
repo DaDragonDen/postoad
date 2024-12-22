@@ -19,7 +19,7 @@ const encryptSubCommand = new Command({
 
     if (interaction instanceof CommandInteraction) {
 
-      await interaction.defer();
+      await interaction.defer(64);
 
       const accountSelector = await createAccountSelector(guildID, "data/encrypt");
 
