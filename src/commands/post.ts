@@ -276,7 +276,7 @@ const command = new Command({
 
     if (interaction instanceof CommandInteraction) {
 
-      await interaction.defer(64);
+      await interaction.defer();
       await promptUserSelection(guildID);
 
       return;
