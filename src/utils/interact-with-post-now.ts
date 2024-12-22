@@ -48,16 +48,6 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     return handlePairs;
 
   }
-
-  async function error() {
-
-    await interaction.editOriginal({
-      content: "Something bad happened. Please try again later.",
-      embeds: [],
-      components: []
-    });
-
-  }
   
   if (interaction instanceof CommandInteraction) {
 
@@ -67,11 +57,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
     // Ask the user which user they want to post as.
     const postLink = interaction.data.options.getString("link");
-    if (!postLink) {
-
-      return await error();
-
-    }
+    if (!postLink) throw new Error();
 
     const defaultSession = await database.collection("sessions").findOne({guildID, isDefault: true});
 
@@ -121,11 +107,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const accountSelector = originalMessage.components[0]?.components[0] as StringSelectMenu;
     const actorDID = accountSelector.options.find((option) => option.default)?.value;
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
-    if (!actorDID || !sessionData) {
-
-      return await error();
-
-    }
+    if (!actorDID || !sessionData) throw new Error();
     
     if (interaction.data.customID === `${action}/now/accountSelector`) {
 
@@ -171,11 +153,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
         }]
       });
 
-      if (!actorDID) {
-
-        return await error();
-
-      }
+      if (!actorDID) throw new Error();
 
       await interaction.editOriginal({
         embeds: [
@@ -227,11 +205,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const options = "options" in accountSelector ? accountSelector.options : undefined;
     const actorDID = options?.find((option) => option.default)?.value;
     const password = interaction.data.components.getTextInput(`${action}/now/password`);
-    if (!actorDID || !password) {
-
-      return await error();
-
-    }
+    if (!actorDID || !password) throw new Error();
 
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
     let decryptionPassword;

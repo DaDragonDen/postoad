@@ -45,16 +45,7 @@ const signoutSubCommand = new Command({
       await interaction.deferUpdate();
 
       const dids = "values" in interaction.data ? interaction.data.values.getStrings() : [];
-      if (!dids[0]) {
-
-        await interaction.editOriginal({
-          content: "Something bad happened. Please try again later.",
-          components: []
-        });
-
-        return;
-
-      }
+      if (!dids[0]) throw new Error();
 
       for (const did of dids) {
 

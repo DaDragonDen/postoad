@@ -20,7 +20,7 @@ const authorizeSubCommand = new Command({
     
     if (!(interaction instanceof CommandInteraction)) {
 
-      throw new Error("Something bad happened on our end. Try again later.");
+      throw new Error();
 
     }
 

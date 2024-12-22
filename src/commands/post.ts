@@ -130,11 +130,7 @@ const command = new Command({
       const originalEmbed = originalResponse?.embeds?.[0];
       const did = originalEmbed?.footer?.text;
       const text = originalEmbed?.description;
-      if (!did) {
-
-        return await error();
-
-      }
+      if (!did) throw new Error();
 
       const session = await blueskyClient.restore(did, "auto", {guildID, decryptionPassword});
       const agent = new Agent(session);
@@ -234,16 +230,6 @@ const command = new Command({
 
     }
 
-    async function error() {
-
-      await interaction.editOriginal({
-        content: "Something bad happened. Try again later.",
-        embeds: [],
-        components: []
-      });
-
-    }
-
     const sessionsCollection = database.collection("sessions");
     const getSessionData = async (did: string) => await sessionsCollection.findOne({guildID, sub: did});
 
@@ -281,11 +267,7 @@ const command = new Command({
         
       }
 
-      if (!did) {
-
-        return await error();
-
-      }
+      if (!did) throw new Error();
 
       await interaction.editOriginal({
         content: "What do you want the message to say? Respond in the modal.",
@@ -390,11 +372,7 @@ const command = new Command({
           // Create a Bluesky client based on the ID.
           const originalResponse = interaction.message;
           const did = interaction.message.embeds[0]?.footer?.text;
-          if (!did) {
-
-            return await error();
-
-          }
+          if (!did) throw new Error();
 
           // Check if the client requires a group password.
           const sessionData = await getSessionData(did);
@@ -478,11 +456,7 @@ const command = new Command({
           const originalResponse = await interaction.getOriginal();
           const originalEmbed = originalResponse?.embeds?.[0];
           const did = originalEmbed?.footer?.text;
-          if (!did) {
-
-            return await error();
-
-          }
+          if (!did) throw new Error();
 
           // Check if the password is correct.
           const sessionData = await getSessionData(did);

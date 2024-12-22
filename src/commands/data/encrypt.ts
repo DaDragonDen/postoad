@@ -1,6 +1,7 @@
 import Command from "#utils/Command.js"
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
+import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import getRandomKey from "#utils/get-random-key.js";
@@ -15,16 +16,6 @@ const encryptSubCommand = new Command({
 
     // Verify the guild.
     const guildID = getGuildIDFromInteraction(interaction);
-    
-    async function promptNoAccessError() {
-
-      await interaction.editOriginal({
-        content: "Postoad doesn't have access to that account anymore.",
-        components: [],
-        embeds: []
-      });
-
-    }
 
     if (interaction instanceof CommandInteraction) {
 
@@ -100,13 +91,7 @@ const encryptSubCommand = new Command({
           // Get the current security level of the DID.
           const selectedDID = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
           const sessionData = await database.collection("sessions").findOne({sub: selectedDID});
-          if (!sessionData) {
-
-            // Postoad probably doesn't have access to this account anymore.
-            await promptNoAccessError();
-            return;
-
-          }
+          if (!sessionData) throw new NoAccessError();
 
           // Set the selection as the default so that the bot knows in the future.
           const securityLevel = !sessionData.keyID ? 2 : (sessionData.hashedGroupPassword ? 1 : 0);
@@ -164,12 +149,7 @@ const encryptSubCommand = new Command({
           }
 
           const sessionData = await database.collection("sessions").findOne({sub: selectedDID});
-          if (!sessionData) {
-
-            await promptNoAccessError();
-            return;
-
-          }
+          if (!sessionData) throw new NoAccessError();
 
           const securityLevel = !sessionData.keyID ? 2 : (sessionData.hashedGroupPassword ? 1 : 0);
           if (goalEncryptionLevel === securityLevel) {
@@ -277,12 +257,7 @@ const encryptSubCommand = new Command({
       }
 
       const sessionData = await database.collection("sessions").findOne({guildID, sub: selectedDID});
-      if (!sessionData) {
-
-        await promptNoAccessError();
-        return;
-
-      }
+      if (!sessionData) throw new NoAccessError();
 
       // Check if that's the correct password.
       const currentSecurityLevel = !sessionData.keyID ? 2 : (sessionData.hashedGroupPassword ? 1 : 0)

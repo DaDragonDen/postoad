@@ -91,15 +91,7 @@ const repostAutoSubCommand = new Command({
         case "repost/auto/enable": {
 
           // Verify that we have a DID and a channel ID.
-          if (!selectedDID || !selectedChannelID) {
-
-            await interaction.editOriginal({
-              content: "Something bad happened. Please try again later."
-            });
-
-            return;
-
-          }
+          if (!selectedDID || !selectedChannelID) throw new Error();
 
           // Update the settings.
           const isEnabling = interaction.data.customID === "repost/auto/enable";

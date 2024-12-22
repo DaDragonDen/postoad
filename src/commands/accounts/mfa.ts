@@ -2,12 +2,15 @@ import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
+import MFAConflictError from "#utils/errors/MFAConflictError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import NoGuildError from "#utils/errors/NoGuildError.js";
 import PostoadError from "#utils/errors/PostoadError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
+import promptIncorrectCode from "#utils/prompt-incorrect-code.js";
+import promptUnknownError from "#utils/prompt-unknown-error.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
 import { authenticator } from "otplib";
 import qrcode from "qrcode";
@@ -248,44 +251,15 @@ const mfaSubCommand = new Command({
       const existingEncryptedTOTPSecret = sessionData?.encryptedTOTPSecret;
       if (!originalMessage || !did || !authenticationToken || (!secretCode && !existingEncryptedTOTPSecret)) {
 
-        await interaction.editOriginal({
-          embeds: [
-            ... originalMessage.embeds[0] && !originalMessage.embeds[0].color ? [originalMessage.embeds[0]] : [],
-            {
-              color: 16776960,
-              description: "⚠️ Something bad happened. Please try again."
-            }
-          ]
-        });
+        await promptUnknownError(interaction);
 
         return;
 
       }
 
-      const promptIncorrectCode = async () => await interaction.editOriginal({
-        embeds: [
-          ... originalMessage.embeds[0] && !originalMessage.embeds[0].color ? [originalMessage.embeds[0]] : [],
-          {
-            color: 15548997,
-            description: "❌ Incorrect code..."
-          }
-        ]
-      });
-
       if (existingEncryptedTOTPSecret) {
 
-        if (secretCode) {
-
-          await interaction.editOriginal({
-            content: "MFA has been previously set up with this session.",
-            attachments: [],
-            embeds: [],
-            components: []
-          });
-
-          return;
-
-        }
+        if (secretCode) throw new MFAConflictError();
 
         const { keyID } = sessionData;
         const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`] as string;
@@ -315,7 +289,7 @@ const mfaSubCommand = new Command({
 
         } else {
 
-          await promptIncorrectCode();
+          await promptIncorrectCode(interaction);
 
         }
 
@@ -324,7 +298,7 @@ const mfaSubCommand = new Command({
         // Verify the authentication token.
         if (!secretCode || !authenticator.verify({token: authenticationToken, secret: secretCode})) {
 
-          await promptIncorrectCode();
+          await promptIncorrectCode(interaction);
           return;
 
         }

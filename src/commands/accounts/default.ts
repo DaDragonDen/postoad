@@ -1,5 +1,4 @@
 import Command from "#utils/Command.js"
-import blueskyClient from "#utils/bluesky-client.js"
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
@@ -51,22 +50,14 @@ const defaultAccountSubCommand = new Command({
       const accountSelectorActionList = interaction.message?.components[0];
       const accountSelector = accountSelectorActionList?.components[0] as StringSelectMenu;
       const did = "values" in interaction.data ? interaction.data.values.getStrings()[0] : [];
-      if (!accountSelectorActionList || !accountSelector) {
-
-        await interaction.editOriginal({
-          content: "Something bad happened. Please try again later.",
-          components: []
-        });
-
-        return;
-
-      }      
+      if (!accountSelectorActionList || !accountSelector) throw new Error();
 
       // Disable the component while we're editing it.
       const options = accountSelector.options.map((option) => ({
         ...option,
         default: option.value === did
       }));
+      
       await interaction.editOriginal({
         components: [
           {
