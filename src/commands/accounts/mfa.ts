@@ -2,14 +2,16 @@ import Command from "#utils/Command.js"
 import createAccountSelector from "#utils/create-account-selector.js";
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
+import IncorrectDecryptionKeyError from "#utils/errors/IncorrectDecryptionKeyError.js";
 import MFAConflictError from "#utils/errors/MFAConflictError.js";
 import MFAIncorrectCodeError from "#utils/errors/MFAIncorrectCodeError.js";
 import MFARemovedError from "#utils/errors/MFARemovedError.js";
 import MissingSystemKeyError from "#utils/errors/MissingSystemKeyError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import isGroupKeyCorrect from "#utils/is-group-key-correct.js";
 import database from "#utils/mongodb-database.js";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalActionRow, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
 import { authenticator } from "otplib";
 import qrcode from "qrcode";
 
@@ -23,27 +25,45 @@ const mfaSubCommand = new Command({
     const guildID = getGuildIDFromInteraction(interaction);
     const sessionsCollection = database.collection("sessions");
 
-    const promptCode = async (interaction: ComponentInteraction, shouldRemove?: boolean) => await interaction.createModal({
-      title: `${shouldRemove ? "Remove m" : "M"}ulti-factor authentication`,
-      customID: "accounts/mfa/codeModal",
-      components: [
-        {
-          type: ComponentTypes.ACTION_ROW,
-          components: [
+    async function promptCode(interaction: ComponentInteraction, options?: {askForDecryptionKey?: boolean, shouldRemove?: boolean}) {
+      
+      await interaction.createModal({
+        title: `${options?.shouldRemove ? "Remove m" : "M"}ulti-factor authentication`,
+        customID: "accounts/mfa/securityModal",
+        components: [
+          ... options?.askForDecryptionKey ? [
             {
-              type: ComponentTypes.TEXT_INPUT,
-              customID: "accounts/mfa/code",
-              style: TextInputStyles.SHORT,
-              label: "Enter the Postoad code provided by your app",
-              minLength: 6,
-              required: true,
-              maxLength: 6,
-              placeholder: "000000"
-            }
-          ]
-        }
-      ]
-    });
+              type: ComponentTypes.ACTION_ROW,
+              components: [
+                {
+                  type: ComponentTypes.TEXT_INPUT,
+                  customID: "accounts/mfa/key",
+                  style: TextInputStyles.SHORT,
+                  label: "Enter your current group decryption key",
+                  required: true
+                }
+              ]
+            } as ModalActionRow
+          ] : [],
+          {
+            type: ComponentTypes.ACTION_ROW,
+            components: [
+              {
+                type: ComponentTypes.TEXT_INPUT,
+                customID: "accounts/mfa/code",
+                style: TextInputStyles.SHORT,
+                label: "Enter the Postoad code provided by your app",
+                minLength: 6,
+                required: true,
+                maxLength: 6,
+                placeholder: "000000"
+              }
+            ]
+          }
+        ]
+      });
+
+    }
 
     if (interaction instanceof CommandInteraction) {
 
@@ -142,7 +162,7 @@ const mfaSubCommand = new Command({
           const isEnabling = configureButton.style === ButtonStyles.SUCCESS;
           if (session.encryptedTOTPSecret && !isEnabling) {
 
-            await promptCode(interaction, true);
+            await promptCode(interaction, {shouldRemove: true});
 
           } else if (isEnabling) {
           
@@ -222,17 +242,34 @@ const mfaSubCommand = new Command({
       const did = originalMessage?.embeds[0]?.footer?.text ?? possibleAccountSelector?.options.find((option) => option.default)?.value;
       let secretCode = originalMessage?.embeds[0]?.fields?.[0].value;
       const authenticationToken = interaction.data.components.getTextInput("accounts/mfa/code");
+      const groupKey = interaction.data.components.getTextInput("accounts/mfa/groupKey");
       const sessionData = await sessionsCollection.findOne({guildID, sub: did});
       const existingEncryptedTOTPSecret = sessionData?.encryptedTOTPSecret;
+      let key = groupKey
 
       if (!originalMessage || !did || !authenticationToken || (!secretCode && !existingEncryptedTOTPSecret)) throw new Error();
 
+      // Verify that the bot still has access to the session.
+      if (!sessionData) throw new NoAccessError();
+
+      // Make sure the group key is correct, if provided. 
+      if (groupKey && !await isGroupKeyCorrect(sessionData.encryptedSession, groupKey)) throw new IncorrectDecryptionKeyError();
+      
+      // Set the system key as the default key if there is no group key.
+      if (!key) {
+          
+        const { keyID } = sessionData;
+        const systemKey = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`];
+        if (!systemKey) throw new MissingSystemKeyError();
+        key = systemKey; 
+
+      }
+
+      // Toggle MFA.
       if (existingEncryptedTOTPSecret) {
 
         if (secretCode) throw new MFAConflictError();
-
-        const { keyID } = sessionData;
-        const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`] as string;
+        
         const secret = await decryptString(existingEncryptedTOTPSecret, key);
 
         if (authenticator.verify({token: authenticationToken, secret})) {
@@ -271,57 +308,27 @@ const mfaSubCommand = new Command({
         // Verify that Postoad still has access to that session..
         if (!sessionData) throw new NoAccessError();
 
-        // Check if the user is using a group decryption key.
-        const { keyID } = sessionData;
-        if (keyID) {
-
-          // Verify that the system key exists.
-          const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`];
-          if (!key) throw new MissingSystemKeyError();
-
-          // Encrypt and save the secret code.
-          const encryptedTOTPSecret = await encryptString(secretCode, key);
-          await sessionsCollection.updateOne(
-            {
-              guildID, 
-              sub: did
-            },
-            {
-              $set: {
-                encryptedTOTPSecret
-              }
+        // Encrypt and save the secret code.
+        const encryptedTOTPSecret = await encryptString(secretCode, key);
+        await sessionsCollection.updateOne(
+          {
+            guildID, 
+            sub: did
+          },
+          {
+            $set: {
+              encryptedTOTPSecret
             }
-          );
+          }
+        );
 
-          // Let the user know.
-          await interaction.editOriginal({
-            content: "All done! If you no longer have access to your authenticator, you can use Postoad again by removing and re-authorizing the account.",
-            attachments: [],
-            components: [],
-            embeds: []
-          });
-
-        } else {
-
-          await interaction.editOriginal({
-            content: "Almost done. Postoad needs the group key that your guild set when setting up the bot.\n-# If you forgot this key, you can remove the account using **/accounts signout** and then re-authorize the account using **/accounts reauthorize**.",
-            files: [],
-            components: [
-              {
-                type: ComponentTypes.ACTION_ROW,
-                components: [
-                  {
-                    type: ComponentTypes.BUTTON,
-                    customID: "accounts/mfa/decrypt",
-                    style: ButtonStyles.PRIMARY,
-                    label: "Enter group key"
-                  }
-                ]
-              }
-            ]
-          })
-
-        }
+        // Let the user know.
+        await interaction.editOriginal({
+          content: "All done! If you no longer have access to your authenticator, you can use Postoad again by removing and re-authorizing the account.",
+          attachments: [],
+          components: [],
+          embeds: []
+        });
 
       }
 

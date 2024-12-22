@@ -131,15 +131,15 @@ const encryptSubCommand = new Command({
             // Ask the user for a current password.
             const isNewEncryption = encryptionType === "system";
             await interaction.createModal({
-              customID: "data/encrypt/passwordModal",
-              title: `${isNewEncryption ? "Choose a" : "Enter your"} Postoad group password`,
+              customID: "data/encrypt/keyModal",
+              title: `${isNewEncryption ? "Choose a" : "Enter your"} decryption key`,
               components: [{
                 type: ComponentTypes.ACTION_ROW,
                 components: [
                   {
                     type: ComponentTypes.TEXT_INPUT,
-                    label: `${isNewEncryption ? "New" : "Current"} Postoad group password`,
-                    customID: `data/encrypt/${isNewEncryption ? "new" : "current"}Password`,
+                    label: `${isNewEncryption ? "New" : "Current"} decryption key`,
+                    customID: `data/encrypt/${isNewEncryption ? "new" : "current"}Key`,
                     style: TextInputStyles.SHORT,
                     maxLength: 128,
                     minLength: 8,
