@@ -4,6 +4,7 @@ import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import PostoadError from "./errors/PostoadError.js";
 import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
+import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
 
 export interface CommandProperties {
   name: string;
@@ -196,7 +197,7 @@ export default class Command {
 
       }
 
-      if (error instanceof MFAIncorrectCodeError) {
+      if (error instanceof MFAIncorrectCodeError || error instanceof IncorrectDecryptionKeyError) {
 
         const originalMessage = ("message" in interaction ? interaction.message : undefined) ?? await interaction.getOriginal();
 
