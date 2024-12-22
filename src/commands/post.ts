@@ -21,12 +21,6 @@ const command = new Command({
       const possibleDefaultSession = await sessionsCollection.findOne({guildID, isDefault: true});
       const handlePairs = await getHandlePairs(guildID);
 
-      if (!handlePairs[0]) {
-
-        throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
-
-      }
-
       // Ask the user which user they want to post as.
       const originalMessage = await interaction.getOriginal();
       const originalEmbed = originalMessage.embeds?.[0];

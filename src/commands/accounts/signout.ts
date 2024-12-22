@@ -1,8 +1,8 @@
 import Command from "#utils/Command.js"
-import blueskyClient from "#utils/bluesky-client.js"
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
-import { ApplicationCommandOptionTypes, CommandInteraction, ComponentInteraction, ComponentTypes } from "oceanic.js";
+import { CommandInteraction, ComponentTypes } from "oceanic.js";
 
 const signoutSubCommand = new Command({
   name: "signout",
@@ -14,25 +14,11 @@ const signoutSubCommand = new Command({
 
     if (interaction instanceof CommandInteraction) {
 
+      // Ask the user which accounts they want to remove.
       await interaction.defer();
       
-      const sessions = await database.collection("sessions").find({guildID}).toArray();
-      const handlePairs = [];
-      for (const session of sessions) {
+      const handlePairs = await getHandlePairs(guildID);
 
-        const {sub} = session;
-        const handle = await blueskyClient.didResolver.resolve(sub);
-        handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-      }
-
-      if (!handlePairs[0]) {
-
-        throw new Error("There are no Bluesky accounts associated with this server.")
-
-      }
-
-      // Ask the user which accounts they want to remove.
       await interaction.editOriginal({
         content: "Which accounts do you want to sign out of?",
         components: [

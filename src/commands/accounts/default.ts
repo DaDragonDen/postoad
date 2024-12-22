@@ -1,6 +1,7 @@
 import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
 import { CommandInteraction, ComponentTypes, StringSelectMenu } from "oceanic.js";
 
@@ -17,20 +18,7 @@ const defaultAccountSubCommand = new Command({
       await interaction.defer();
       
       const sessions = await database.collection("sessions").find({guildID}).toArray();
-      const handlePairs = [];
-      for (const session of sessions) {
-
-        const {sub} = session;
-        const handle = await blueskyClient.didResolver.resolve(sub);
-        handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-      }
-
-      if (!handlePairs[0]) {
-
-        throw new Error("There are no Bluesky accounts associated with this server.")
-
-      }
+      const handlePairs = await getHandlePairs(guildID);
 
       // Ask the user which accounts they want to remove.
       const defaultSessionData = sessions.find((sessionData) => sessionData.isDefault);

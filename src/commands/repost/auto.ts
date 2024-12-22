@@ -1,8 +1,9 @@
 import Command from "#utils/Command.js"
 import { ButtonStyles, ChannelSelectMenu, ChannelTypes, CommandInteraction, ComponentInteraction, ComponentTypes, StringSelectMenu } from "oceanic.js";
 import database from "#utils/mongodb-database.js";
-import blueskyClient from "#utils/bluesky-client.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import NoAutoGroupDecryptionError from "#utils/errors/NoAutoGroupDecryptionError.js";
+import getHandlePairs from "#utils/get-handle-pairs.js";
 
 const repostAutoSubCommand = new Command({
   name: "auto",
@@ -21,31 +22,13 @@ const repostAutoSubCommand = new Command({
       let hiddenSessions = sessions.length - systemEncryptedSessions.length;
       if (systemEncryptedSessions.length === 0) {
 
-        await interaction.createFollowup({
-          content: "This server has requested for Postoad to encrypt your sessions using a group password. Postoad cannot automatically act on your behalf without your attention. To use this feature, please change your data encryption settings through the **/data encrypt** command."
-        });
-
-        return;
-
-      }
-
-      // Get the accounts that the server can access.
-      const handlePairs = [];
-      for (const sessionData of sessions) {
-
-        const {sub} = sessionData;
-        const handle = await blueskyClient.didResolver.resolve(sub);
-        handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-      }
-
-      if (!handlePairs[0]) {
-
-        throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.")
+        throw new NoAutoGroupDecryptionError();
 
       }
 
       // Ask the user which user they want to post as.
+      const handlePairs = await getHandlePairs(guildID);
+
       await interaction.editOriginal({
         content: `Configure Postoad's auto-repost settings using the dropdowns.${hiddenSessions ? ` ${hiddenSessions} accounts were hidden because they are encrypted using a group password. In these cases, Postoad cannot automatically act on your behalf without your attention.` : ""}`,
         components: [

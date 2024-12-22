@@ -31,15 +31,6 @@ const encryptSubCommand = new Command({
       await interaction.defer();
 
       const handlePairs = await getHandlePairs(guildID);
-      if (!handlePairs[0]) {
-
-        await interaction.createFollowup({
-          content: "You haven't added any Bluesky accounts yet. Use **/accounts authorize** to set up Postoad."
-        });
-
-        return;
-
-      }
 
       await interaction.createFollowup({
         content: "How do you want Postoad to encrypt your sessions?" + 

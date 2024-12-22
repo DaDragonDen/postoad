@@ -6,6 +6,7 @@ import NoAccessError from "#utils/errors/NoAccessError.js";
 import NoGuildError from "#utils/errors/NoGuildError.js";
 import PostoadError from "#utils/errors/PostoadError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
 import { authenticator } from "otplib";
@@ -45,26 +46,13 @@ const mfaSubCommand = new Command({
 
     if (interaction instanceof CommandInteraction) {
 
+      // Ask the user which accounts they want to remove.
       await interaction.defer(64);
       
       const sessions = await sessionsCollection.find({guildID}).toArray();
       const defaultSession = sessions.find((session) => session.isDefault);
-      const handlePairs = [];
-      for (const session of sessions) {
+      const handlePairs = await getHandlePairs(guildID);
 
-        const {sub} = session;
-        const handle = await blueskyClient.didResolver.resolve(sub);
-        handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-      }
-
-      if (!handlePairs[0]) {
-
-        throw new PostoadError("There are no Bluesky accounts associated with this server.")
-
-      }
-
-      // Ask the user which accounts they want to remove.
       await interaction.editOriginal({
         content: "You can require multi-factor authentication for users who want to use Postoad's features. Postoad will ask users for a code from their authenticator app before they run a command. If you no longer have access to your authenticator, consider asking someone else. If no one has access to the authenticator, use **/accounts signout** to remove the account, then re-add it back using **/accounts authorize**.",
         components: [
