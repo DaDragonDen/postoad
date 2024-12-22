@@ -1,4 +1,5 @@
 import Command from "#utils/Command.js"
+import createAccountSelector from "#utils/create-account-selector.js";
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
@@ -21,7 +22,7 @@ const encryptSubCommand = new Command({
 
       await interaction.defer();
 
-      const handlePairs = await getHandlePairs(guildID);
+      const accountSelector = await createAccountSelector(guildID, "data/encrypt");
 
       await interaction.createFollowup({
         content: "How do you want Postoad to encrypt your sessions?" + 
@@ -29,20 +30,7 @@ const encryptSubCommand = new Command({
           "\n* **Encrypt using system password and ask for group password:** Your sessions will be encrypted with a system password, but Postoad will ask all bot users for an group password that you set. If you forget the group password, you will have to sign out of the account from Postoad and then re-add the session. This potentially protects you from malicious actors with command access." +
           "\n* **Encrypt using group password:** Your sessions will be encrypted using an group password, potentially protecting you from malicious actors with database and system access. However, automatic posting will be disabled because Postoad cannot automatically decrypt the passwords without your attention.",
         components: [
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.STRING_SELECT,
-                customID: "data/encrypt/accountSelector",
-                options: handlePairs.map((handlePair) => ({
-                  label: handlePair[0],
-                  value: handlePair[1],
-                  description: handlePair[1]
-                }))
-              }
-            ]
-          }, 
+          accountSelector, 
           {
             type: ComponentTypes.ACTION_ROW,
             components: [

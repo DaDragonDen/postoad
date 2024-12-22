@@ -1,7 +1,7 @@
 import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
-import { ApplicationCommandOptionTypes, CommandInteraction, ComponentInteraction } from "oceanic.js";
+import { ApplicationCommandOptionTypes, CommandInteraction } from "oceanic.js";
 
 const authorizeSubCommand = new Command({
   name: "authorize",

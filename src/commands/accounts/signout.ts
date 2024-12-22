@@ -1,4 +1,5 @@
 import Command from "#utils/Command.js"
+import createAccountSelector from "#utils/create-account-selector.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
@@ -19,25 +20,10 @@ const signoutSubCommand = new Command({
       
       const handlePairs = await getHandlePairs(guildID);
 
+      const accountSelector = await createAccountSelector(guildID, "accounts/signout", undefined, {maxValues: handlePairs.length});
       await interaction.editOriginal({
         content: "Which accounts do you want to sign out of?",
-        components: [
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.STRING_SELECT,
-                customID: "accounts/signout/accountSelector",
-                maxValues: handlePairs.length,
-                options: handlePairs.map(([handle, sub]) => ({
-                  label: handle,
-                  value: sub,
-                  description: sub,
-                }))
-              }
-            ]
-          }
-        ]
+        components: [accountSelector]
       });
 
     } else {

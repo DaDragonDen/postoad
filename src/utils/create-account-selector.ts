@@ -1,7 +1,7 @@
-import { ComponentTypes, MessageActionRow, SelectOption } from "oceanic.js";
+import { ComponentTypes, MessageActionRow, SelectMenuBase } from "oceanic.js";
 import getHandlePairs from "./get-handle-pairs.js";
 
-export default async function createAccountSelector(guildID: string, customIDPrefix: string, defaultOptionFilter?: (did: string) => boolean): Promise<MessageActionRow> {
+export default async function createAccountSelector(guildID: string, customIDPrefix: string, defaultOptionFilter?: (did: string) => boolean, overrides?: Partial<SelectMenuBase<ComponentTypes.STRING_SELECT>>): Promise<MessageActionRow> {
 
   const handlePairs = await getHandlePairs(guildID);
 
