@@ -2,6 +2,10 @@ import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
+import NoAccessError from "#utils/errors/NoAccessError.js";
+import NoGuildError from "#utils/errors/NoGuildError.js";
+import PostoadError from "#utils/errors/PostoadError.js";
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import database from "#utils/mongodb-database.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
 import { authenticator } from "otplib";
@@ -14,20 +18,8 @@ const mfaSubCommand = new Command({
   async action(interaction) {
 
     // Get the Bluesky accounts.
-    const { guildID } = interaction;
-    if (!guildID) {
-
-      throw new Error("You must use this command in a server.");
-
-    }
-
+    const guildID = getGuildIDFromInteraction(interaction);
     const sessionsCollection = database.collection("sessions");
-
-    const promptNoAccessError = async () => await interaction.editOriginal({
-      content: "Postoad doesn't have access to that account anymore.",
-      embeds: [],
-      components: []
-    });
 
     const promptCode = async (interaction: ComponentInteraction, shouldRemove?: boolean) => await interaction.createModal({
       title: `${shouldRemove ? "Remove m" : "M"}ulti-factor authentication`,
@@ -68,13 +60,13 @@ const mfaSubCommand = new Command({
 
       if (!handlePairs[0]) {
 
-        throw new Error("There are no Bluesky accounts associated with this server.")
+        throw new PostoadError("There are no Bluesky accounts associated with this server.")
 
       }
 
       // Ask the user which accounts they want to remove.
       await interaction.editOriginal({
-        content: "You can configure your multi-factor authentication settings here. Postoad will ask users for a code from their authenticator app before they run a command. If you no longer have access to your authenticator, consider asking someone else. If no one has access to the authenticator, use **/accounts signout** to remove the account, then re-add it back using **/accounts authorize**.",
+        content: "You can require multi-factor authentication for users who want to use Postoad's features. Postoad will ask users for a code from their authenticator app before they run a command. If you no longer have access to your authenticator, consider asking someone else. If no one has access to the authenticator, use **/accounts signout** to remove the account, then re-add it back using **/accounts authorize**.",
         components: [
           {
             type: ComponentTypes.ACTION_ROW,
@@ -122,7 +114,6 @@ const mfaSubCommand = new Command({
           const sessionData = await database.collection("sessions").findOne({guildID, sub: selectedDID});
 
           await interaction.editOriginal({
-            content: "You can require multi-factor authentication for users who want to use Postoad's features. Postoad will ask users for a code from their authenticator app before they run a command. If you no longer have access to your authenticator, consider asking someone else. If no one has access to the authenticator, use **/accounts signout** to remove the account, then re-add it back using **/accounts authorize**.",
             components: [
               {
                 ...accountSelectorActionRow,
@@ -174,9 +165,7 @@ const mfaSubCommand = new Command({
           const session = await sessionsCollection.findOne({guildID, sub: did});
           if (!session) {
 
-            await interaction.deferUpdate();
-            await promptNoAccessError();
-            return;
+            throw new NoAccessError();
 
           }
 
@@ -248,7 +237,6 @@ const mfaSubCommand = new Command({
         }
 
         case "accounts/mfa/verify": {
-
           await promptCode(interaction);
           break;
 
@@ -356,9 +344,7 @@ const mfaSubCommand = new Command({
         // Verify that Postoad still has access to that session..
         if (!sessionData) {
 
-          await promptNoAccessError();
-
-          return;
+          throw new NoAccessError();
 
         }
 

@@ -1,4 +1,5 @@
 import Command from "#utils/Command.js"
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import database from "#utils/mongodb-database.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes } from "oceanic.js";
 
@@ -8,17 +9,7 @@ const forgetSubCommand = new Command({
   action: async (interaction) => {
 
     // Verify the guild.
-    const {guildID} = interaction;
-    if (!guildID) {
-
-      await interaction.defer();
-      
-      await interaction.createFollowup({
-        content: "You can only run this command in servers that you manage."
-      });
-      return;
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
     
     if (interaction instanceof CommandInteraction) {
 

@@ -2,18 +2,14 @@ import Command from "#utils/Command.js"
 import { ButtonStyles, ChannelSelectMenu, ChannelTypes, CommandInteraction, ComponentInteraction, ComponentTypes, StringSelectMenu } from "oceanic.js";
 import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 
 const repostAutoSubCommand = new Command({
   name: "auto",
   description: "Configure auto-repost settings for Bluesky.",
   async action(interaction) {
 
-    const { guildID } = interaction;
-    if (!guildID) {
-
-      throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
 
     if (interaction instanceof CommandInteraction) {
 

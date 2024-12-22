@@ -1,5 +1,6 @@
 import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import database from "#utils/mongodb-database.js";
 import { CommandInteraction, ComponentTypes, StringSelectMenu } from "oceanic.js";
 
@@ -9,12 +10,7 @@ const defaultAccountSubCommand = new Command({
   async action(interaction) {
 
     // Get the Bluesky accounts.
-    const { guildID } = interaction;
-    if (!guildID) {
-
-      throw new Error("You must use this command in a server.");
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
 
     if (interaction instanceof CommandInteraction) {
 

@@ -6,18 +6,14 @@ import blueskyClient from "#utils/bluesky-client.js";
 import { Did } from "@atproto/oauth-client-node";
 import { verify } from "argon2";
 import getHandlePairs from "#utils/get-handle-pairs.js";
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 
 const command = new Command({
   name: "post",
   description: "Post on behalf of a user on Bluesky.",
   async action(interaction) {
 
-    const { guildID } = interaction;
-    if (!guildID) {
-
-      throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
 
     async function promptUserSelection(guildID: string) {
 

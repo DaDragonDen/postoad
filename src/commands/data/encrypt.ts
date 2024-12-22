@@ -1,6 +1,7 @@
 import Command from "#utils/Command.js"
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import getRandomKey from "#utils/get-random-key.js";
 import database from "#utils/mongodb-database.js";
@@ -13,17 +14,7 @@ const encryptSubCommand = new Command({
   action: async (interaction) => {
 
     // Verify the guild.
-    const {guildID} = interaction;
-    if (!guildID) {
-
-      await interaction.defer();
-      
-      await interaction.createFollowup({
-        content: "You can only run this command in servers that you manage."
-      });
-      return;
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
     
     async function promptNoAccessError() {
 

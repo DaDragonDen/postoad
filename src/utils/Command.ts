@@ -2,6 +2,7 @@ import { ApplicationCommandOptionsWithValue, ApplicationCommandOptionTypes, Appl
 import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
+import PostoadError from "./errors/PostoadError.js";
 
 export interface CommandProperties {
   name: string;
@@ -178,10 +179,33 @@ export default class Command {
 
       await this.action(interaction);
 
-    } catch (err: unknown) {
+    } catch (error: unknown) {
 
-      await interaction.createFollowup({
-        content: err instanceof Error ? err.message : "Something bad happened. How about running that by me one more time?"
+      if (!interaction.acknowledged) { 
+        
+        if ("deferUpdate" in interaction) {
+
+          await interaction.deferUpdate();
+
+        } else {
+
+          await interaction.defer();
+
+        }
+
+      }
+
+      await interaction.editOriginal({
+        content: error instanceof PostoadError ? error.message : "Something bad happened on our side. If this happens often, [let us know](https://github.com/DaDragonDen/postoad/issues).",
+        embeds: [
+          ... error instanceof Error ? [
+            {
+              description: error.stack ?? error.message
+            }
+          ] : []
+        ],
+        components: [],
+        attachments: []
       });
 
     }
