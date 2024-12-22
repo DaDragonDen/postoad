@@ -174,12 +174,10 @@ const mfaSubCommand = new Command({
 
         case "accounts/mfa/verify": {
 
-          const accountSelection = accountSelector.options.find((option) => option.default);
-          if (!accountSelection) throw new Error();
+          const did = accountSelector.type === ComponentTypes.STRING_SELECT ? accountSelector.options.find((option) => option.default)?.value : interaction.message.embeds[0]?.footer?.text;
+          if (!did) throw new Error();
 
-          const did = accountSelection.value;
-
-          await promptSecurityModal(interaction, guildID, did, "accounts/mfa");
+          await promptSecurityModal(interaction, guildID, did, "accounts/mfa", true);
           break;
 
         }

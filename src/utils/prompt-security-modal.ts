@@ -2,14 +2,14 @@ import { CommandInteraction, ComponentInteraction, ComponentTypes, ModalActionRo
 import database from "./mongodb-database.js";
 import NoAccessError from "./errors/NoAccessError.js";
 
-export default async function promptSecurityModal(interaction: CommandInteraction | ComponentInteraction, guildID: string, did: string, customIDPrefix: string): Promise<boolean> {
+export default async function promptSecurityModal(interaction: CommandInteraction | ComponentInteraction, guildID: string, did: string, customIDPrefix: string, isSettingUpMFA?: boolean): Promise<boolean> {
 
-  const sessionData = await database.collection("sessions").findOne({guildID, did});
+  const sessionData = await database.collection("sessions").findOne({guildID, sub: did});
   if (!sessionData) throw new NoAccessError();
 
   const isSessionEncryptedByGroupKey = !sessionData.keyID;
-  const isSessionProtectedByTOTP = !!sessionData.sessionData.encryptedTOTPSecret;
-  const shouldPromptSecurityModal = isSessionEncryptedByGroupKey || isSessionProtectedByTOTP;
+  const isSessionProtectedByTOTP = !!sessionData.encryptedTOTPSecret;
+  const shouldPromptSecurityModal = isSettingUpMFA || isSessionEncryptedByGroupKey || isSessionProtectedByTOTP;
 
   if (shouldPromptSecurityModal) {
 
@@ -31,7 +31,7 @@ export default async function promptSecurityModal(interaction: CommandInteractio
             ]
           } as ModalActionRow
         ] : [],
-        ... isSessionProtectedByTOTP ? [
+        ... isSettingUpMFA || isSessionProtectedByTOTP ? [
           {
             type: ComponentTypes.ACTION_ROW,
             components: [

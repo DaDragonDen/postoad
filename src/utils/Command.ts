@@ -212,10 +212,11 @@ export default class Command {
 
       } else {
 
+        const isPostoadError = error instanceof PostoadError;
         await interaction.editOriginal({
-          content: error instanceof PostoadError ? error.message : "Something bad happened on our side. If this happens often, [let us know](https://github.com/DaDragonDen/postoad/issues).",
+          content: isPostoadError ? error.message : "Something bad happened on our side. If this happens often, [let us know](https://github.com/DaDragonDen/postoad/issues).",
           embeds: [
-            ... error instanceof Error ? [
+            ... error instanceof Error && !isPostoadError ? [
               {
                 description: error.stack ?? error.message
               }
