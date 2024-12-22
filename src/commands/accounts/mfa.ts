@@ -3,11 +3,12 @@ import createAccountSelector from "#utils/create-account-selector.js";
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
 import MFAConflictError from "#utils/errors/MFAConflictError.js";
+import MFARemovedError from "#utils/errors/MFARemovedError.js";
+import MissingSystemKeyError from "#utils/errors/MissingSystemKeyError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import database from "#utils/mongodb-database.js";
 import promptIncorrectCode from "#utils/prompt-incorrect-code.js";
-import promptUnknownError from "#utils/prompt-unknown-error.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
 import { authenticator } from "otplib";
 import qrcode from "qrcode";
@@ -136,11 +137,7 @@ const mfaSubCommand = new Command({
 
           const did = accountSelection.value;
           const session = await sessionsCollection.findOne({guildID, sub: did});
-          if (!session) {
-
-            throw new NoAccessError();
-
-          }
+          if (!session) throw new NoAccessError();
 
           const isEnabling = configureButton.style === ButtonStyles.SUCCESS;
           if (session.encryptedTOTPSecret && !isEnabling) {
@@ -196,12 +193,7 @@ const mfaSubCommand = new Command({
             
           } else {
 
-            await interaction.deferUpdate();
-            await interaction.editOriginal({
-              content: session.encryptedTOTPSecret ? "That session already has an MFA requirement." : "That session doesn't have an MFA requirement anymore.",
-              components: [],
-              embeds: []
-            });
+            throw session.encryptedTOTPSecret ? new MFAConflictError() : new MFARemovedError();
 
           }
 
@@ -224,6 +216,7 @@ const mfaSubCommand = new Command({
 
       // Verify that the user provided a DID and authentication token.
       await interaction.deferUpdate();
+      
       const originalMessage = await interaction.getOriginal();
       const possibleAccountSelector = originalMessage.components[0]?.components[0] as StringSelectMenu | undefined;
       const did = originalMessage?.embeds[0]?.footer?.text ?? possibleAccountSelector?.options.find((option) => option.default)?.value;
@@ -231,13 +224,8 @@ const mfaSubCommand = new Command({
       const authenticationToken = interaction.data.components.getTextInput("accounts/mfa/code");
       const sessionData = await sessionsCollection.findOne({guildID, sub: did});
       const existingEncryptedTOTPSecret = sessionData?.encryptedTOTPSecret;
-      if (!originalMessage || !did || !authenticationToken || (!secretCode && !existingEncryptedTOTPSecret)) {
 
-        await promptUnknownError(interaction);
-
-        return;
-
-      }
+      if (!originalMessage || !did || !authenticationToken || (!secretCode && !existingEncryptedTOTPSecret)) throw new Error();
 
       if (existingEncryptedTOTPSecret) {
 
@@ -294,18 +282,7 @@ const mfaSubCommand = new Command({
 
           // Verify that the system key exists.
           const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`];
-          if (!key) {
-
-            await interaction.editOriginal({
-              content: "Postoad is missing an important system key and cannot continue. Please report this to the bot maintainers.",
-              attachments: [],
-              embeds: [],
-              components: []
-            });
-
-            return;
-
-          }
+          if (!key) throw new MissingSystemKeyError();
 
           // Encrypt and save the secret code.
           const encryptedTOTPSecret = await encryptString(secretCode, key);
