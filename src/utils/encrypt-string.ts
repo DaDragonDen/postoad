@@ -1,6 +1,6 @@
 import { createCipheriv, createHash, randomBytes } from "crypto";
 
-async function encryptSession(decryptedSession: string, key: string) {
+async function encryptString(decryptedSession: string, key: string) {
   
   // Encrypt the session using the key.
   const keyHash = createHash("sha256").update(key).digest();
@@ -14,4 +14,4 @@ async function encryptSession(decryptedSession: string, key: string) {
 
 }
 
-export default encryptSession;
+export default encryptString;

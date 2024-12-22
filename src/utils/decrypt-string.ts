@@ -1,6 +1,6 @@
 import { createDecipheriv, createHash } from "crypto";
 
-async function decryptSession(encryptedSession: string, key: string) {
+async function decryptString(encryptedSession: string, key: string) {
 
   const keyHash = createHash("sha256").update(key).digest();
   const buffer = Buffer.from(encryptedSession, "base64");
@@ -17,4 +17,4 @@ async function decryptSession(encryptedSession: string, key: string) {
 
 }
 
-export default decryptSession;
+export default decryptString;

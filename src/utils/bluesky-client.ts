@@ -1,8 +1,8 @@
 import { NodeSavedState } from "@atproto/oauth-client-node";
 import { JoseKey } from "@atproto/jwk-jose";
 import database from "./mongodb-database.js";
-import decryptSession from "./decrypt-session.js";
-import encryptSession from "./encrypt-session.js";
+import decryptSession from "./decrypt-string.js";
+import encryptSession from "./encrypt-string.js";
 import { NodeOAuthClient } from "./atproto-custom-deps/node-oauth-client.js";
 import getRandomKey from "./get-random-key.js";
 import { ObjectId } from "mongodb";
