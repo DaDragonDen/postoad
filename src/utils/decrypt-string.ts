@@ -9,11 +9,8 @@ async function decryptString(encryptedSession: string, key: string) {
   const decipher = createDecipheriv("aes-256-cbc", keyHash, iv);
   let decryptedText = decipher.update(encryptedText, "hex", "utf8");
   decryptedText += decipher.final("utf8");
-
-  // Turn the session back into an object.
-  const session = JSON.parse(decryptedText);
   
-  return session;
+  return decryptedText;
 
 }
 

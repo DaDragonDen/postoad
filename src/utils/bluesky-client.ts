@@ -45,7 +45,8 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
       if (!key) return undefined;
 
       // Return the decrypted session.
-      return await decryptSession(sessionData.encryptedSession, key);
+      const decryptedSessionString = await decryptSession(sessionData.encryptedSession, key);
+      return JSON.parse(decryptedSessionString);
 
     },
     set: async (sub, session, options) => {

@@ -1,6 +1,6 @@
 import Command from "#utils/Command.js"
-import decryptSession from "#utils/decrypt-string.js";
-import encryptSession from "#utils/encrypt-string.js";
+import decryptString from "#utils/decrypt-string.js";
+import encryptString from "#utils/encrypt-string.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import getRandomKey from "#utils/get-random-key.js";
 import database from "#utils/mongodb-database.js";
@@ -359,8 +359,7 @@ const encryptSubCommand = new Command({
           }
 
           // Decrypt the session using the password.
-          const decryptedSession = await decryptSession(sessionData.encryptedSession, systemPassword || password);
-          const decryptedSessionString = JSON.stringify(decryptedSession);
+          const decryptedSessionString = await decryptString(sessionData.encryptedSession, systemPassword || password);
 
           // Re-encrypt it using the new password.
           let encryptedSession;
@@ -368,7 +367,7 @@ const encryptSubCommand = new Command({
           if (newEncryption === "system") {
 
             keyData = getRandomKey();
-            encryptedSession = await encryptSession(decryptedSessionString, keyData.key);
+            encryptedSession = await encryptString(decryptedSessionString, keyData.key);
             await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
               $set: {
                 encryptedSession,
@@ -386,7 +385,7 @@ const encryptSubCommand = new Command({
 
           } else {
 
-            encryptedSession = await encryptSession(decryptedSessionString, password);
+            encryptedSession = await encryptString(decryptedSessionString, password);
             await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
               $set: {
                 hashedGroupPassword: await hash(password),

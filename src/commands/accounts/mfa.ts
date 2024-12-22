@@ -1,5 +1,6 @@
 import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
+import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
 import database from "#utils/mongodb-database.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
@@ -21,6 +22,34 @@ const mfaSubCommand = new Command({
     }
 
     const sessionsCollection = database.collection("sessions");
+
+    const promptNoAccessError = async () => await interaction.editOriginal({
+      content: "Postoad doesn't have access to that account anymore.",
+      embeds: [],
+      components: []
+    });
+
+    const promptCode = async (interaction: ComponentInteraction, shouldRemove?: boolean) => await interaction.createModal({
+      title: `${shouldRemove ? "Remove m" : "M"}ulti-factor authentication`,
+      customID: "accounts/mfa/codeModal",
+      components: [
+        {
+          type: ComponentTypes.ACTION_ROW,
+          components: [
+            {
+              type: ComponentTypes.TEXT_INPUT,
+              customID: "accounts/mfa/code",
+              style: TextInputStyles.SHORT,
+              label: "Enter the Postoad code provided by your app",
+              minLength: 6,
+              required: true,
+              maxLength: 6,
+              placeholder: "000000"
+            }
+          ]
+        }
+      ]
+    });
 
     if (interaction instanceof CommandInteraction) {
 
@@ -128,7 +157,6 @@ const mfaSubCommand = new Command({
         case "accounts/mfa/configure": {
 
           // Make sure an account was selected.
-          await interaction.deferUpdate();
           const accountSelection = accountSelector.options.find((option) => option.default);
           if (!accountSelection) {
 
@@ -141,50 +169,70 @@ const mfaSubCommand = new Command({
             return;
 
           }
-          
-          // Generate a TOTP secret to display to the user.
-          const secret = authenticator.generateSecret();
-          const uri = authenticator.keyuri(accountSelection.label, "Postoad", secret);
-          const qrCodeBuffer = await qrcode.toBuffer(uri);
 
-          await interaction.editOriginal({
-            content: "Scan the QR code or enter the secret code in your authenticator app and then press **Verify authenticator code** to finish setup.\n-# Save and share this QR code with authorized staff members so they can set up multi-factor authentication later. You will only see this once.",
-            files: [
-              {
-                name: "code.png",
-                contents: qrCodeBuffer
-              }
-            ],
-            embeds: [
-              {
-                author: {
-                  name: accountSelection.label
-                },
-                footer: {
-                  text: accountSelection.value
-                },
-                fields: [
-                  {
-                    name: "Secret code",
-                    value: secret
-                  }
-                ]
-              }
-            ],
-            components: [
-              {
-                type: ComponentTypes.ACTION_ROW,
-                components: [
-                  {
-                    type: ComponentTypes.BUTTON,
-                    customID: "accounts/mfa/verify",
-                    label: "Verify authentication code",
-                    style: ButtonStyles.PRIMARY
-                  }
-                ]
-              }
-            ]
-          });
+          const did = accountSelection.value;
+          const session = await sessionsCollection.findOne({guildID, sub: did});
+          if (!session) {
+
+            await interaction.deferUpdate();
+            await promptNoAccessError();
+            return;
+
+          }
+
+          if (session.encryptedTOTPSecret) {
+
+            // 
+            await promptCode(interaction, true);
+
+          } else {
+          
+            // Generate a TOTP secret to display to the user.
+            await interaction.deferUpdate();
+            const secret = authenticator.generateSecret();
+            const uri = authenticator.keyuri(accountSelection.label, "Postoad", secret);
+            const qrCodeBuffer = await qrcode.toBuffer(uri);
+
+            await interaction.editOriginal({
+              content: "Scan the QR code or enter the secret code in your authenticator app and then press **Verify authenticator code** to finish setup.\n-# Save and share this QR code with authorized staff members so they can set up multi-factor authentication later. You will only see this once.",
+              files: [
+                {
+                  name: "code.png",
+                  contents: qrCodeBuffer
+                }
+              ],
+              embeds: [
+                {
+                  author: {
+                    name: accountSelection.label
+                  },
+                  footer: {
+                    text: did
+                  },
+                  fields: [
+                    {
+                      name: "Secret code",
+                      value: secret
+                    }
+                  ]
+                }
+              ],
+              components: [
+                {
+                  type: ComponentTypes.ACTION_ROW,
+                  components: [
+                    {
+                      type: ComponentTypes.BUTTON,
+                      customID: "accounts/mfa/verify",
+                      label: "Verify authentication code",
+                      style: ButtonStyles.PRIMARY
+                    }
+                  ]
+                }
+              ]
+            });
+
+          }
 
           break;
 
@@ -192,27 +240,7 @@ const mfaSubCommand = new Command({
 
         case "accounts/mfa/verify": {
 
-          await interaction.createModal({
-            title: "Multi-factor authentication",
-            customID: "accounts/mfa/codeModal",
-            components: [
-              {
-                type: ComponentTypes.ACTION_ROW,
-                components: [
-                  {
-                    type: ComponentTypes.TEXT_INPUT,
-                    customID: "accounts/mfa/code",
-                    style: TextInputStyles.SHORT,
-                    label: "Enter the Postoad code provided by your app",
-                    minLength: 6,
-                    required: true,
-                    maxLength: 6,
-                    placeholder: "000000"
-                  }
-                ]
-              }
-            ]
-          });
+          await promptCode(interaction);
 
           break;
 
@@ -228,14 +256,17 @@ const mfaSubCommand = new Command({
       // Verify that the user provided a DID and authentication token.
       await interaction.deferUpdate();
       const originalMessage = await interaction.getOriginal();
-      const did = originalMessage?.embeds[0]?.footer?.text;
-      const secretCode = originalMessage?.embeds[0]?.fields?.[0].value;
+      const possibleAccountSelector = originalMessage.components[0]?.components[0] as StringSelectMenu | undefined;
+      const did = originalMessage?.embeds[0]?.footer?.text ?? possibleAccountSelector?.options.find((option) => option.default)?.value;
+      let secretCode = originalMessage?.embeds[0]?.fields?.[0].value;
       const authenticationToken = interaction.data.components.getTextInput("accounts/mfa/code");
-      if (!originalMessage || !did || !secretCode || !authenticationToken) {
+      const sessionData = await sessionsCollection.findOne({guildID, sub: did});
+      const existingEncryptedTOTPSecret = !secretCode && sessionData?.encryptedTOTPSecret;
+      if (!originalMessage || !did || !authenticationToken || (!secretCode && !existingEncryptedTOTPSecret)) {
 
         await interaction.editOriginal({
           embeds: [
-            originalMessage.embeds[0],
+            ... originalMessage.embeds[0] && !originalMessage.embeds[0].color ? [originalMessage.embeds[0]] : [],
             {
               color: 16776960,
               description: "⚠️ Something bad happened. Please try again."
@@ -247,96 +278,130 @@ const mfaSubCommand = new Command({
 
       }
 
-      // Verify the authentication token.
-      if (!authenticator.verify({token: authenticationToken, secret: secretCode})) {
+      const promptIncorrectCode = async () => await interaction.editOriginal({
+        embeds: [
+          ... originalMessage.embeds[0] && !originalMessage.embeds[0].color ? [originalMessage.embeds[0]] : [],
+          {
+            color: 15548997,
+            description: "❌ Incorrect code..."
+          }
+        ]
+      });
 
-        await interaction.editOriginal({
-          embeds: [
-            originalMessage.embeds[0],
+      if (existingEncryptedTOTPSecret) {
+
+        const { keyID } = sessionData;
+        const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`] as string;
+        const secret = await decryptString(existingEncryptedTOTPSecret, key);
+
+        if (authenticator.verify({token: authenticationToken, secret})) {
+
+          // Remove MFA secret from the session.
+          await sessionsCollection.updateOne(
             {
-              color: 15548997,
-              description: "❌ Incorrect code..."
+              guildID,
+              sub: did
+            },
+            {
+              $unset: {
+                encryptedTOTPSecret: 1
+              }
             }
-          ]
-        });
-
-        return;
-
-      }
-
-      // Verify that Postoad still has access to that session..
-      const sessionData = await sessionsCollection.findOne({guildID, sub: did});
-      if (!sessionData) {
-
-        await interaction.editOriginal({
-          content: "Postoad doesn't have access to that account anymore.",
-          embeds: [],
-          components: []
-        });
-
-        return;
-
-      }
-
-      // Ask the user to enter their decryption key if necessary.
-      const { keyID } = sessionData;
-      if (keyID) {
-
-        // Verify that the system key exists.
-        const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`];
-        if (!key) {
+          );
 
           await interaction.editOriginal({
-            content: "Postoad is missing an important system key and cannot continue. Please report this to the bot maintainers.",
-            embeds: [],
-            components: []
+            content: "All done. That session no longer has an MFA requirement.",
+            files: [],
+            components: [],
+            embeds: []
           });
+
+        } else {
+
+          await promptIncorrectCode();
+
+        }
+
+      } else {
+
+        // Verify the authentication token.
+        if (!secretCode || !authenticator.verify({token: authenticationToken, secret: secretCode})) {
+
+          await promptIncorrectCode();
+          return;
+
+        }
+
+        // Verify that Postoad still has access to that session..
+        if (!sessionData) {
+
+          await promptNoAccessError();
 
           return;
 
         }
 
-        // Encrypt and save the secret code.
-        const encryptedTOTPSecret = await encryptString(secretCode, key);
-        await sessionsCollection.updateOne(
-          {
-            guildID, 
-            sub: did
-          },
-          {
-            $set: {
-              encryptedTOTPSecret
-            }
+        // Ask the user to enter their decryption key if necessary.
+        const { keyID } = sessionData;
+        if (keyID) {
+
+          // Verify that the system key exists.
+          const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`];
+          if (!key) {
+
+            await interaction.editOriginal({
+              content: "Postoad is missing an important system key and cannot continue. Please report this to the bot maintainers.",
+              embeds: [],
+              components: []
+            });
+
+            return;
+
           }
-        );
 
-        // Let the user know.
-        await interaction.editOriginal({
-          content: "All done! If you no longer have access to your authenticator, you can use Postoad again by removing and re-authorizing the account.",
-          files: [],
-          components: [],
-          embeds: []
-        })
-
-      } else {
-
-        await interaction.editOriginal({
-          content: "Almost done. Postoad needs the group key that your guild set when setting up the bot.\n-# If you forgot this key, you can remove the account using **/accounts signout** and then re-authorize the account using **/accounts reauthorize**.",
-          files: [],
-          components: [
+          // Encrypt and save the secret code.
+          const encryptedTOTPSecret = await encryptString(secretCode, key);
+          await sessionsCollection.updateOne(
             {
-              type: ComponentTypes.ACTION_ROW,
-              components: [
-                {
-                  type: ComponentTypes.BUTTON,
-                  customID: "accounts/mfa/decrypt",
-                  style: ButtonStyles.PRIMARY,
-                  label: "Enter group key"
-                }
-              ]
+              guildID, 
+              sub: did
+            },
+            {
+              $set: {
+                encryptedTOTPSecret
+              }
             }
-          ]
-        })
+          );
+
+          // Let the user know.
+          await interaction.editOriginal({
+            content: "All done! If you no longer have access to your authenticator, you can use Postoad again by removing and re-authorizing the account.",
+            files: [],
+            components: [],
+            embeds: []
+          });
+
+        } else {
+
+          await interaction.editOriginal({
+            content: "Almost done. Postoad needs the group key that your guild set when setting up the bot.\n-# If you forgot this key, you can remove the account using **/accounts signout** and then re-authorize the account using **/accounts reauthorize**.",
+            files: [],
+            components: [
+              {
+                type: ComponentTypes.ACTION_ROW,
+                components: [
+                  {
+                    type: ComponentTypes.BUTTON,
+                    customID: "accounts/mfa/decrypt",
+                    style: ButtonStyles.PRIMARY,
+                    label: "Enter group key"
+                  }
+                ]
+              }
+            ]
+          })
+
+        }
 
       }
 
