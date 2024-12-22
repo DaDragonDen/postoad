@@ -5,8 +5,8 @@ import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
 import { Did } from "@atproto/oauth-client-node";
 import { verify } from "argon2";
-import getHandlePairs from "#utils/get-handle-pairs.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import createAccountSelector from "#utils/create-account-selector.js";
 
 const command = new Command({
   name: "post",
@@ -19,35 +19,21 @@ const command = new Command({
 
       // Get the accounts that the server can access.
       const possibleDefaultSession = await sessionsCollection.findOne({guildID, isDefault: true});
-      const handlePairs = await getHandlePairs(guildID);
 
       // Ask the user which user they want to post as.
       const originalMessage = await interaction.getOriginal();
       const originalEmbed = originalMessage.embeds?.[0];
+      const accountSelector = await createAccountSelector(guildID, "post", (did) => originalEmbed.footer?.text === did);
       await interaction.editOriginal({
         content: "Which user do you want to post as?",
         embeds: originalEmbed ? [originalEmbed] : undefined,
         components: [
+          accountSelector,
           {
             type: ComponentTypes.ACTION_ROW,
             components: [
               {
-                type: ComponentTypes.STRING_SELECT,
-                customID: `post/accountSelectorChoose`,
-                options: handlePairs.map(([handle, sub]) => ({
-                  label: handle,
-                  value: sub,
-                  description: sub,
-                  default: (originalEmbed ? originalEmbed.footer?.text : possibleDefaultSession?.sub) === sub
-                }))
-              }
-            ],
-          },
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                customID: `post/accountSelector${originalMessage.embeds[0] ? "Update" : ""}`,
+                customID: `post/accountSelector${originalMessage.embeds[0] ? "Update" : "Confirm"}`,
                 type: ComponentTypes.BUTTON,
                 label: "Continue",
                 style: ButtonStyles.PRIMARY,
@@ -64,7 +50,7 @@ const command = new Command({
       
       const originalResponse = await interaction.getOriginal();
       const originalEmbed = originalResponse?.embeds?.[0];
-      if (!originalEmbed) throw new Error("Something bad happened. Try again later.");
+      if (!originalEmbed) throw new Error();
 
       const description = (shouldUseEmbedDescription ? originalEmbed.description : newPostContent) || undefined;
       const attachmentSources = originalEmbed.fields?.[0]?.value ?? "-# Reply to this message with any media that you want to add.";
@@ -259,7 +245,7 @@ const command = new Command({
       const originalEmbed = originalResponse.embeds?.[0];
       let handle;
       let did = originalEmbed?.footer?.text;
-      if (interaction.isComponentInteraction() && interaction.data.customID === "post/accountSelector") {
+      if (interaction.isComponentInteraction() && interaction.data.customID === "post/accountSelectorConfirm") {
 
         const accountSelector = interaction.message?.components[0].components[0] as StringSelectMenu;
         did = accountSelector.options.find((option) => option.default)?.value ?? did;
@@ -302,7 +288,7 @@ const command = new Command({
           await promptConfirmation(undefined, true);
           break;
 
-        case "post/accountSelectorChoose":
+        case "post/accountSelector":
           await interaction.deferUpdate();
 
           const originalEmbed = interaction.message?.embeds?.[0];
@@ -360,7 +346,7 @@ const command = new Command({
         }
 
         case "post/changeText":
-        case "post/accountSelector": {
+        case "post/accountSelectorConfirm": {
 
           await promptChangeText(interaction);
           break;

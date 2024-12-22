@@ -4,7 +4,6 @@ import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
-import getHandlePairs from "#utils/get-handle-pairs.js";
 import getRandomKey from "#utils/get-random-key.js";
 import database from "#utils/mongodb-database.js";
 import { hash, verify } from "argon2";

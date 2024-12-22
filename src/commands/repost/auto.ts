@@ -3,7 +3,7 @@ import { ButtonStyles, ChannelSelectMenu, ChannelTypes, CommandInteraction, Comp
 import database from "#utils/mongodb-database.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import NoAutoGroupDecryptionError from "#utils/errors/NoAutoGroupDecryptionError.js";
-import getHandlePairs from "#utils/get-handle-pairs.js";
+import createAccountSelector from "#utils/create-account-selector.js";
 
 const repostAutoSubCommand = new Command({
   name: "auto",
@@ -27,25 +27,12 @@ const repostAutoSubCommand = new Command({
       }
 
       // Ask the user which user they want to post as.
-      const handlePairs = await getHandlePairs(guildID);
+      const accountSelector = await createAccountSelector(guildID, "repost/auto");
 
       await interaction.editOriginal({
         content: `Configure Postoad's auto-repost settings using the dropdowns.${hiddenSessions ? ` ${hiddenSessions} accounts were hidden because they are encrypted using a group password. In these cases, Postoad cannot automatically act on your behalf without your attention.` : ""}`,
         components: [
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.STRING_SELECT,
-                customID: "repost/auto/accountSelector",
-                options: handlePairs.map(([handle, sub]) => ({
-                  label: handle,
-                  value: sub,
-                  description: sub
-                }))
-              }
-            ]
-          },
+          accountSelector,
           {
             type: ComponentTypes.ACTION_ROW,
             components: [

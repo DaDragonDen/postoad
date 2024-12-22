@@ -15,61 +15,19 @@ async function interactWithPost(source: {interaction?: ModalSubmitInteraction | 
     const postLink = originalEmbed?.footer?.text;
     const postSplit = postLink?.split("/");
     rkey = postSplit?.pop();
-    if (!postSplit || !rkey) {
-
-      await interaction.editOriginal({
-        content: "Something bad happened. Please try again later.",
-        components: [],
-        embeds: []
-      });
-
-      throw new Error();
-
-    }
+    if (!postSplit || !rkey) throw new Error();
 
     postCreatorHandle = postSplit[4];
 
   }
 
-  if (!actorDID || !postCreatorHandle || !rkey) {
-
-    if (interaction) {
-
-      await interaction.editOriginal({
-        content: "Something bad happened. Please try again later.",
-        components: [],
-        embeds: []
-      });
-
-      throw new Error();
-
-    }
-
-    return;
-
-  }
+  if (!actorDID || !postCreatorHandle || !rkey) throw new Error();
 
   // Get the CID of the post.
   const session = await blueskyClient.restore(actorDID, "auto", {guildID: source.guildID, decryptionPassword: source.decryptionPassword});
   const agent = new Agent(session);
   const postCreatorDID = await blueskyClient.handleResolver.resolve(postCreatorHandle);
-  if (!postCreatorDID) {
-
-    if (interaction) {
-
-      await interaction.editOriginal({
-        content: "Something bad happened. Please try again later.",
-        components: [],
-        embeds: []
-      });
-
-      throw new Error();
-
-    }
-
-    return;
-
-  }
+  if (!postCreatorDID) throw new Error();
 
   const { data: {cid} } = await agent.com.atproto.repo.getRecord({
     collection: "app.bsky.feed.post",
@@ -77,23 +35,7 @@ async function interactWithPost(source: {interaction?: ModalSubmitInteraction | 
     rkey
   });
 
-  if (!cid) {
-
-    if (interaction) {
-
-      await interaction.editOriginal({
-        content: "Something bad happened. Please try again later.",
-        components: [],
-        embeds: []
-      });
-
-      throw new Error();
-
-    }
-
-    return;
-
-  }
+  if (!cid) throw new Error();
 
   // Get the URI we need.
   let uri = `at://${postCreatorDID}/app.bsky.feed.post/${rkey}`;

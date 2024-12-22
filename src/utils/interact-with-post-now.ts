@@ -1,17 +1,13 @@
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
 import interactWithPost from "./interact-with-post.js";
 import database from "./mongodb-database.js";
-import blueskyClient from "./bluesky-client.js";
 import { verify } from "argon2";
+import createAccountSelector from "./create-account-selector.js";
+import getGuildIDFromInteraction from "./get-guild-id-from-interaction.js";
 
 async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, action: "like" | "repost") {
 
-  const { guildID } = interaction;
-  if (!guildID) {
-
-    throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.");
-
-  }
+  const guildID = getGuildIDFromInteraction(interaction);
 
   async function confirmAction(options: {interaction: ModalSubmitInteraction | ComponentInteraction, guildID: string, actorDID: string, decryptionPassword?: string}) {
 
@@ -27,33 +23,11 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
   }
 
-  async function getHandlePairs() {
-
-    const sessions = await database.collection("sessions").find({guildID}).toArray();
-    const handlePairs = [];
-    for (const session of sessions) {
-
-      const {sub} = session;
-      const handle = await blueskyClient.didResolver.resolve(sub);
-      handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-    }
-
-    if (!handlePairs[0]) {
-
-      throw new Error("You must authorize Postoad to use a Bluesky account before you use this command.")
-
-    }
-
-    return handlePairs;
-
-  }
-  
   if (interaction instanceof CommandInteraction) {
 
     // Get the accounts that the server can access.
     await interaction.defer();
-    const handlePairs = await getHandlePairs();
+    const accountSelector = await createAccountSelector(guildID, `${action}/now`, (did) => did === defaultSession?.sub);
 
     // Ask the user which user they want to post as.
     const postLink = interaction.data.options.getString("link");
@@ -71,21 +45,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
         }
       ],
       components: [
-        {
-          type: ComponentTypes.ACTION_ROW,
-          components: [
-            {
-              type: ComponentTypes.STRING_SELECT,
-              customID: `${action}/now/accountSelector`,
-              options: handlePairs.map(([handle, sub]) => ({
-                label: handle,
-                value: sub,
-                description: sub,
-                default: sub === defaultSession?.sub
-              }))
-            }
-          ]
-        },
+        accountSelector,
         {
           type: ComponentTypes.ACTION_ROW,
           components: [

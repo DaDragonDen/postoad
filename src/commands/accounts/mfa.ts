@@ -5,7 +5,6 @@ import encryptString from "#utils/encrypt-string.js";
 import MFAConflictError from "#utils/errors/MFAConflictError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
-import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
 import promptIncorrectCode from "#utils/prompt-incorrect-code.js";
 import promptUnknownError from "#utils/prompt-unknown-error.js";
