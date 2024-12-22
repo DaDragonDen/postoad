@@ -4,9 +4,9 @@ import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes,
 import database from "#utils/mongodb-database.js";
 import blueskyClient from "#utils/bluesky-client.js";
 import { Did } from "@atproto/oauth-client-node";
-import { verify } from "argon2";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import createAccountSelector from "#utils/create-account-selector.js";
+import isGroupKeyCorrect from "#utils/is-group-key-correct.js";
 
 const command = new Command({
   name: "post",
@@ -447,7 +447,7 @@ const command = new Command({
           // Check if the password is correct.
           const sessionData = await getSessionData(did);
           const password = interaction.data.components.getTextInput("post/password");
-          const isPasswordCorrect = !sessionData || !sessionData.hashedGroupPassword || (password && await verify(sessionData.hashedGroupPassword, password));
+          const isPasswordCorrect = !sessionData || !!sessionData.keyID || (password && await isGroupKeyCorrect(sessionData.encryptedSession, password));
           if (sessionData && isPasswordCorrect) {
 
             await submitPost(interaction, originalResponse, !sessionData.keyID ? password : undefined);

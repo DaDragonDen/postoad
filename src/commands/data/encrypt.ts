@@ -5,8 +5,8 @@ import encryptString from "#utils/encrypt-string.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getRandomKey from "#utils/get-random-key.js";
+import isGroupKeyCorrect from "#utils/is-group-key-correct.js";
 import database from "#utils/mongodb-database.js";
-import { hash, verify } from "argon2";
 import { CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
 
 const encryptSubCommand = new Command({
@@ -26,7 +26,6 @@ const encryptSubCommand = new Command({
       await interaction.createFollowup({
         content: "How do you want Postoad to encrypt your sessions?" + 
           "\n* **Encrypt using system password:** Your sessions will be encrypted using a system password. You can use the bot without Postoad asking for a password." +
-          "\n* **Encrypt using system password and ask for group password:** Your sessions will be encrypted with a system password, but Postoad will ask all bot users for an group password that you set. If you forget the group password, you will have to sign out of the account from Postoad and then re-add the session. This potentially protects you from malicious actors with command access." +
           "\n* **Encrypt using group password:** Your sessions will be encrypted using an group password, potentially protecting you from malicious actors with database and system access. However, automatic posting will be disabled because Postoad cannot automatically decrypt the passwords without your attention.",
         components: [
           accountSelector, 
@@ -40,17 +39,12 @@ const encryptSubCommand = new Command({
                 options: [
                   {
                     label: "Encrypt using system password",
-                    value: "0",
+                    value: "system",
                     description: "Most convenient"
-                  }, 
-                  {
-                    label: "Encrypt using system password and ask for group password",
-                    value: "1",
-                    description: "Balanced"
                   },
                   {
                     label: "Encrypt using group password",
-                    value: "2",
+                    value: "group",
                     description: "Most secure"
                   }
                 ]
@@ -81,7 +75,7 @@ const encryptSubCommand = new Command({
           if (!sessionData) throw new NoAccessError();
 
           // Set the selection as the default so that the bot knows in the future.
-          const securityLevel = !sessionData.keyID ? 2 : (sessionData.hashedGroupPassword ? 1 : 0);
+          const encryptionType = sessionData.keyID ? "system" : "group";
 
           await interaction.editOriginal({
             components: [
@@ -105,7 +99,7 @@ const encryptSubCommand = new Command({
                     disabled: false,
                     options: securitySelectMenu.options.map((option) => ({
                       ...option,
-                      default: option.value === `${securityLevel}`
+                      default: option.value === encryptionType
                     }))
                   }
                 ]
@@ -120,33 +114,22 @@ const encryptSubCommand = new Command({
         case "data/encrypt/method": {
           
           // Make sure a method was provided.
-          const goalEncryptionLevel = "values" in interaction.data ? parseInt(interaction.data.values.getStrings()[0], 10) : undefined;
-          const selectedDID = accountSelectMenu.options.find((option) => option.default)?.value;
-          if (typeof(goalEncryptionLevel) !== "number" || !selectedDID) {
+          const goalEncryptionType = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
+          const did = accountSelectMenu.options.find((option) => option.default)?.value;
+          if (!goalEncryptionType || !did) throw new Error();
 
-            await interaction.deferUpdate();
-            await interaction.editOriginal({
-              content: "Something bad happened. Please try again later.",
-              embeds: [],
-              components: []
-            });
-            
-            return;
-
-          }
-
-          const sessionData = await database.collection("sessions").findOne({sub: selectedDID});
+          const sessionData = await database.collection("sessions").findOne({sub: did});
           if (!sessionData) throw new NoAccessError();
 
-          const securityLevel = !sessionData.keyID ? 2 : (sessionData.hashedGroupPassword ? 1 : 0);
-          if (goalEncryptionLevel === securityLevel) {
+          const encryptionType = sessionData.keyID ? "system" : "group";
+          if (encryptionType === goalEncryptionType) {
             
             await interaction.deferUpdate();
 
-          } else if (securityLevel > 0 || goalEncryptionLevel > 0) {
+          } else {
 
             // Ask the user for a current password.
-            const isNewEncryption = securityLevel === 0 && goalEncryptionLevel > 0;
+            const isNewEncryption = encryptionType === "system";
             await interaction.createModal({
               customID: "data/encrypt/passwordModal",
               title: `${isNewEncryption ? "Choose a" : "Enter your"} Postoad group password`,
@@ -190,17 +173,13 @@ const encryptSubCommand = new Command({
                       disabled: true,
                       options: securitySelectMenu.options.map((option) => ({
                         ...option,
-                        default: option.value === `${goalEncryptionLevel}`
+                        default: option.value === goalEncryptionType
                       }))
                     }
                   ]
                 }
               ]
             });
-
-          } else {
-
-            await interaction.deferUpdate();
 
           }
 
@@ -227,28 +206,18 @@ const encryptSubCommand = new Command({
       const selectedDID = accountSelectMenu.options.find((option) => option.default)?.value;
       const securitySelectMenuActionRow = originalComponents[1];
       const securitySelectMenu = securitySelectMenuActionRow?.components?.[0] as StringSelectMenu;
-      const selectedSecurityLevel = parseInt(securitySelectMenu.options.find((option) => option.default)?.value ?? "", 10);
-      const currentGroupPassword = interaction.data.components.getTextInput("data/encrypt/currentPassword");
-      const newGroupPassword = interaction.data.components.getTextInput("data/encrypt/newPassword");
-      const password = currentGroupPassword ?? newGroupPassword;
-      if (!selectedDID || typeof(selectedSecurityLevel) !== "number" || !password) {
-
-        await interaction.editOriginal({
-          content: "Something bad happened. Please try again later.",
-          components: [],
-          embeds: []
-        });
-        
-        return;
-
-      }
+      const goalEncryptionType = securitySelectMenu.options.find((option) => option.default)?.value;
+      const currentGroupKey = interaction.data.components.getTextInput("data/encrypt/currentKey");
+      const newGroupKey = interaction.data.components.getTextInput("data/encrypt/newKey");
+      const password = currentGroupKey ?? newGroupKey;
+      if (!selectedDID || goalEncryptionType || !password) throw new Error();
 
       const sessionData = await database.collection("sessions").findOne({guildID, sub: selectedDID});
       if (!sessionData) throw new NoAccessError();
 
       // Check if that's the correct password.
-      const currentSecurityLevel = !sessionData.keyID ? 2 : (sessionData.hashedGroupPassword ? 1 : 0)
-      if (sessionData?.hashedGroupPassword && (!currentGroupPassword || !await verify(sessionData.hashedGroupPassword, currentGroupPassword))) {
+      const currentEncryptionType = sessionData.keyID ? "system" : "group";
+      if (currentEncryptionType === "group" && (!currentGroupKey || !await isGroupKeyCorrect(sessionData.encryptedSession, currentGroupKey))) {
 
         await interaction.editOriginal({
           embeds: [
@@ -275,7 +244,7 @@ const encryptSubCommand = new Command({
                   disabled: false,
                   options: securitySelectMenu.options.map((option) => ({
                     ...option,
-                    default: option.value === `${currentSecurityLevel}`
+                    default: option.value === currentEncryptionType
                   }))
                 }
               ]
@@ -288,66 +257,56 @@ const encryptSubCommand = new Command({
       }
 
       // Save the password in the database.
-      async function swapSessionEncryptions(password: string, newEncryption: "system" | "group") {
+      const sessions = await database.collection("sessions").find({guildID}).toArray();
+      for (const sessionData of sessions) {
 
-        const sessions = await database.collection("sessions").find({guildID}).toArray();
-        for (const sessionData of sessions) {
+        let systemPassword = "";
+        if (sessionData.keyID) {
 
-          let systemPassword = "";
-          if (sessionData.keyID) {
+          const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+          if (!possibleSystemPassword) throw new Error();
+          systemPassword = possibleSystemPassword;
 
-            const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
-            if (!possibleSystemPassword) throw new Error();
-            systemPassword = possibleSystemPassword;
-
-          }
-
-          // Decrypt the session using the password.
-          const decryptedSessionString = await decryptString(sessionData.encryptedSession, systemPassword || password);
-
-          // Re-encrypt it using the new password.
-          let encryptedSession;
-          let keyData;
-          if (newEncryption === "system") {
-
-            keyData = getRandomKey();
-            encryptedSession = await encryptString(decryptedSessionString, keyData.key);
-            await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
-              $set: {
-                encryptedSession,
-                ... selectedSecurityLevel !== 0 ? {
-                  hashedGroupPassword: await hash(password)
-                } : {},
-                keyID: keyData.keyID
-              },
-              ... selectedSecurityLevel === 0 ? {
-                $unset: {
-                  hashedGroupPassword: 1
-                }
-              } : {}
-            });
-
-          } else {
-
-            encryptedSession = await encryptString(decryptedSessionString, password);
-            await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
-              $set: {
-                hashedGroupPassword: await hash(password),
-                encryptedSession,
-              },
-              $unset: {
-                keyID: 1,
-                repostChannelIDs: 1
-              }
-            });
-
-          }
-          
         }
 
-      }
+        // Decrypt the session using the password.
+        const decryptedSessionString = await decryptString(sessionData.encryptedSession, systemPassword || password);
 
-      await swapSessionEncryptions(password, selectedSecurityLevel === 2 ? "group" : "system");
+        // Re-encrypt it using the new password.
+        let encryptedSession;
+        let keyData;
+        if (goalEncryptionType === "system") {
+
+          keyData = getRandomKey();
+          encryptedSession = await encryptString(decryptedSessionString, keyData.key);
+          await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
+            $set: {
+              encryptedSession,
+              keyID: keyData.keyID
+            },
+            ... goalEncryptionType === "system" ? {
+              $unset: {
+                hashedGroupPassword: 1
+              }
+            } : {}
+          });
+
+        } else {
+
+          encryptedSession = await encryptString(decryptedSessionString, password);
+          await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
+            $set: {
+              encryptedSession,
+            },
+            $unset: {
+              keyID: 1,
+              repostChannelIDs: 1
+            }
+          });
+
+        }
+        
+      }
 
       // Let the user know.
       await interaction.editOriginal({
@@ -370,7 +329,7 @@ const encryptSubCommand = new Command({
                 disabled: false,
                 options: securitySelectMenu.options.map((option) => ({
                   ...option,
-                  default: option.value === `${selectedSecurityLevel}`
+                  default: option.value === currentEncryptionType
                 }))
               }
             ]

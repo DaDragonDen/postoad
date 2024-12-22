@@ -3,12 +3,12 @@ import createAccountSelector from "#utils/create-account-selector.js";
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
 import MFAConflictError from "#utils/errors/MFAConflictError.js";
+import MFAIncorrectCodeError from "#utils/errors/MFAIncorrectCodeError.js";
 import MFARemovedError from "#utils/errors/MFARemovedError.js";
 import MissingSystemKeyError from "#utils/errors/MissingSystemKeyError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import database from "#utils/mongodb-database.js";
-import promptIncorrectCode from "#utils/prompt-incorrect-code.js";
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
 import { authenticator } from "otplib";
 import qrcode from "qrcode";
@@ -259,24 +259,19 @@ const mfaSubCommand = new Command({
 
         } else {
 
-          await promptIncorrectCode(interaction);
+          throw new MFAIncorrectCodeError();
 
         }
 
       } else {
 
         // Verify the authentication token.
-        if (!secretCode || !authenticator.verify({token: authenticationToken, secret: secretCode})) {
-
-          await promptIncorrectCode(interaction);
-          return;
-
-        }
+        if (!secretCode || !authenticator.verify({token: authenticationToken, secret: secretCode})) throw new MFAIncorrectCodeError();
 
         // Verify that Postoad still has access to that session..
         if (!sessionData) throw new NoAccessError();
 
-        // Ask the user to enter their decryption key if necessary.
+        // Check if the user is using a group decryption key.
         const { keyID } = sessionData;
         if (keyID) {
 

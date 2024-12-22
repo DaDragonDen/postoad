@@ -1,9 +1,9 @@
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
 import interactWithPost from "./interact-with-post.js";
 import database from "./mongodb-database.js";
-import { verify } from "argon2";
 import createAccountSelector from "./create-account-selector.js";
 import getGuildIDFromInteraction from "./get-guild-id-from-interaction.js";
+import isGroupKeyCorrect from "./is-group-key-correct.js";
 
 async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, action: "like" | "repost") {
 
@@ -169,10 +169,10 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
     let decryptionPassword;
-    if (sessionData && sessionData.hashedGroupPassword) {
+    if (sessionData && !sessionData.keyID) {
 
       // Check if the password is correct.
-      if (!(await verify(sessionData.hashedGroupPassword, password))) {
+      if (!(await isGroupKeyCorrect(sessionData.encryptedSession, password))) {
 
         await interaction.editOriginal({
           embeds: [
@@ -208,11 +208,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
       }
 
-      if (!sessionData.keyID) {
-
-        decryptionPassword = password;
-
-      }
+      decryptionPassword = password;
 
     }
 

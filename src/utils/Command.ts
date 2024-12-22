@@ -3,6 +3,7 @@ import fs from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import PostoadError from "./errors/PostoadError.js";
+import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
 
 export interface CommandProperties {
   name: string;
@@ -195,18 +196,36 @@ export default class Command {
 
       }
 
-      await interaction.editOriginal({
-        content: error instanceof PostoadError ? error.message : "Something bad happened on our side. If this happens often, [let us know](https://github.com/DaDragonDen/postoad/issues).",
-        embeds: [
-          ... error instanceof Error ? [
+      if (error instanceof MFAIncorrectCodeError) {
+
+        const originalMessage = ("message" in interaction ? interaction.message : undefined) ?? await interaction.getOriginal();
+
+        return await interaction.editOriginal({
+          embeds: [
+            ... originalMessage.embeds[0] && !originalMessage.embeds[0].color ? [originalMessage.embeds[0]] : [],
             {
-              description: error.stack ?? error.message
+              color: 15548997,
+              description: error.message
             }
-          ] : []
-        ],
-        components: [],
-        attachments: []
-      });
+          ]
+        });
+
+      } else {
+
+        await interaction.editOriginal({
+          content: error instanceof PostoadError ? error.message : "Something bad happened on our side. If this happens often, [let us know](https://github.com/DaDragonDen/postoad/issues).",
+          embeds: [
+            ... error instanceof Error ? [
+              {
+                description: error.stack ?? error.message
+              }
+            ] : []
+          ],
+          components: [],
+          attachments: []
+        });
+
+      }
 
     }
 
