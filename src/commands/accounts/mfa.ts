@@ -93,7 +93,7 @@ const mfaSubCommand = new Command({
           const sessionData = await database.collection("sessions").findOne({guildID, sub: selectedDID});
 
           await interaction.editOriginal({
-            content: "You can configure your multi-factor authentication settings here. Postoad will ask users for a code from their authenticator app before they run a command. If you no longer have access to your authenticator, consider asking someone else. If no one has access to the authenticator, use **/accounts signout** to remove the account, then re-add it back using **/accounts authorize**.",
+            content: "You can require multi-factor authentication for users who want to use Postoad's features. Postoad will ask users for a code from their authenticator app before they run a command. If you no longer have access to your authenticator, consider asking someone else. If no one has access to the authenticator, use **/accounts signout** to remove the account, then re-add it back using **/accounts authorize**.",
             components: [
               {
                 ...accountSelectorActionRow,
