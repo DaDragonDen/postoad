@@ -2,6 +2,7 @@ import Command from "#utils/Command.js"
 import createAccountSelector from "#utils/create-account-selector.js";
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
+import MissingSystemKeyError from "#utils/errors/MissingSystemKeyError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getRandomKey from "#utils/get-random-key.js";
@@ -132,13 +133,13 @@ const encryptSubCommand = new Command({
             const isNewEncryption = encryptionType === "system";
             await interaction.createModal({
               customID: "data/encrypt/keyModal",
-              title: `${isNewEncryption ? "Choose a" : "Enter your"} decryption key`,
+              title: "Postoad security",
               components: [{
                 type: ComponentTypes.ACTION_ROW,
                 components: [
                   {
                     type: ComponentTypes.TEXT_INPUT,
-                    label: `${isNewEncryption ? "New" : "Current"} decryption key`,
+                    label: `${isNewEncryption ? "Enter a new" : "Current"} decryption key`,
                     customID: `data/encrypt/${isNewEncryption ? "new" : "current"}Key`,
                     style: TextInputStyles.SHORT,
                     maxLength: 128,
@@ -223,7 +224,7 @@ const encryptSubCommand = new Command({
           embeds: [
             {
               color: 15548997,
-              description: "❌ Incorrect password..."
+              description: "❌ Incorrect decryption key..."
             }
           ],
           components: [
@@ -264,7 +265,7 @@ const encryptSubCommand = new Command({
         if (sessionData.keyID) {
 
           const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
-          if (!possibleSystemPassword) throw new Error();
+          if (!possibleSystemPassword) throw new MissingSystemKeyError();
           systemPassword = possibleSystemPassword;
 
         }
@@ -283,12 +284,7 @@ const encryptSubCommand = new Command({
             $set: {
               encryptedSession,
               keyID: keyData.keyID
-            },
-            ... goalEncryptionType === "system" ? {
-              $unset: {
-                hashedGroupPassword: 1
-              }
-            } : {}
+            }
           });
 
         } else {

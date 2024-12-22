@@ -7,6 +7,8 @@ import { Did } from "@atproto/oauth-client-node";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import createAccountSelector from "#utils/create-account-selector.js";
 import isGroupKeyCorrect from "#utils/is-group-key-correct.js";
+import NoAccessError from "#utils/errors/NoAccessError.js";
+import promptSecurityModal from "#utils/prompt-security-modal.js";
 
 const command = new Command({
   name: "post",
@@ -362,27 +364,9 @@ const command = new Command({
 
           // Check if the client requires a group password.
           const sessionData = await getSessionData(did);
-          if (sessionData?.hashedGroupPassword) {
+          if (!sessionData) throw new NoAccessError();
 
-            // Ask the user for the password.
-            await interaction.createModal({
-              customID: "post/passwordModal",
-              title: "Enter your Postoad group password",
-              components: [{
-                type: ComponentTypes.ACTION_ROW,
-                components: [
-                  {
-                    type: ComponentTypes.TEXT_INPUT,
-                    label: "Current Postoad group password",
-                    customID: "post/password",
-                    style: TextInputStyles.SHORT,
-                    maxLength: 128,
-                    minLength: 8,
-                    required: true
-                  }
-                ]
-              }]
-            });
+          if (await promptSecurityModal(interaction, guildID, did, "post")) {
 
             // Let the user know that we're authenticating them.
             // Disable the buttons so nothing breaks.
@@ -436,7 +420,7 @@ const command = new Command({
       await interaction.deferUpdate();
       switch (interaction.data.customID) {
 
-        case "post/passwordModal": {
+        case "post/securityModal": {
 
           // Make sure we still have a DID.
           const originalResponse = await interaction.getOriginal();
@@ -446,7 +430,7 @@ const command = new Command({
 
           // Check if the password is correct.
           const sessionData = await getSessionData(did);
-          const password = interaction.data.components.getTextInput("post/password");
+          const password = interaction.data.components.getTextInput("post/key");
           const isPasswordCorrect = !sessionData || !!sessionData.keyID || (password && await isGroupKeyCorrect(sessionData.encryptedSession, password));
           if (sessionData && isPasswordCorrect) {
 

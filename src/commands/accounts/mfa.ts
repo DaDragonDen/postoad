@@ -11,7 +11,8 @@ import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import isGroupKeyCorrect from "#utils/is-group-key-correct.js";
 import database from "#utils/mongodb-database.js";
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalActionRow, ModalSubmitInteraction, StringSelectMenu, TextButton, TextInputStyles } from "oceanic.js";
+import promptSecurityModal from "#utils/prompt-security-modal.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextButton } from "oceanic.js";
 import { authenticator } from "otplib";
 import qrcode from "qrcode";
 
@@ -24,46 +25,6 @@ const mfaSubCommand = new Command({
     // Get the Bluesky accounts.
     const guildID = getGuildIDFromInteraction(interaction);
     const sessionsCollection = database.collection("sessions");
-
-    async function promptCode(interaction: ComponentInteraction, options?: {askForDecryptionKey?: boolean, shouldRemove?: boolean}) {
-      
-      await interaction.createModal({
-        title: `${options?.shouldRemove ? "Remove m" : "M"}ulti-factor authentication`,
-        customID: "accounts/mfa/securityModal",
-        components: [
-          ... options?.askForDecryptionKey ? [
-            {
-              type: ComponentTypes.ACTION_ROW,
-              components: [
-                {
-                  type: ComponentTypes.TEXT_INPUT,
-                  customID: "accounts/mfa/key",
-                  style: TextInputStyles.SHORT,
-                  label: "Enter your current group decryption key",
-                  required: true
-                }
-              ]
-            } as ModalActionRow
-          ] : [],
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.TEXT_INPUT,
-                customID: "accounts/mfa/code",
-                style: TextInputStyles.SHORT,
-                label: "Enter the Postoad code provided by your app",
-                minLength: 6,
-                required: true,
-                maxLength: 6,
-                placeholder: "000000"
-              }
-            ]
-          }
-        ]
-      });
-
-    }
 
     if (interaction instanceof CommandInteraction) {
 
@@ -143,17 +104,7 @@ const mfaSubCommand = new Command({
 
           // Make sure an account was selected.
           const accountSelection = accountSelector.options.find((option) => option.default);
-          if (!accountSelection) {
-
-            await interaction.editOriginal({
-              content: "Something bad happened. Try again later.",
-              embeds: [],
-              components: []
-            });
-
-            return;
-
-          }
+          if (!accountSelection) throw new Error();
 
           const did = accountSelection.value;
           const session = await sessionsCollection.findOne({guildID, sub: did});
@@ -162,7 +113,7 @@ const mfaSubCommand = new Command({
           const isEnabling = configureButton.style === ButtonStyles.SUCCESS;
           if (session.encryptedTOTPSecret && !isEnabling) {
 
-            await promptCode(interaction, {shouldRemove: true});
+            await promptSecurityModal(interaction, guildID, did, "accounts/mfa");
 
           } else if (isEnabling) {
           
@@ -222,7 +173,13 @@ const mfaSubCommand = new Command({
         }
 
         case "accounts/mfa/verify": {
-          await promptCode(interaction);
+
+          const accountSelection = accountSelector.options.find((option) => option.default);
+          if (!accountSelection) throw new Error();
+
+          const did = accountSelection.value;
+
+          await promptSecurityModal(interaction, guildID, did, "accounts/mfa");
           break;
 
         }
@@ -241,8 +198,8 @@ const mfaSubCommand = new Command({
       const possibleAccountSelector = originalMessage.components[0]?.components[0] as StringSelectMenu | undefined;
       const did = originalMessage?.embeds[0]?.footer?.text ?? possibleAccountSelector?.options.find((option) => option.default)?.value;
       let secretCode = originalMessage?.embeds[0]?.fields?.[0].value;
-      const authenticationToken = interaction.data.components.getTextInput("accounts/mfa/code");
-      const groupKey = interaction.data.components.getTextInput("accounts/mfa/groupKey");
+      const authenticationToken = interaction.data.components.getTextInput("accounts/mfa/totp");
+      const groupKey = interaction.data.components.getTextInput("accounts/mfa/key");
       const sessionData = await sessionsCollection.findOne({guildID, sub: did});
       const existingEncryptedTOTPSecret = sessionData?.encryptedTOTPSecret;
       let key = groupKey

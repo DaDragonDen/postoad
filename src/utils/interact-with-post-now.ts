@@ -4,6 +4,7 @@ import database from "./mongodb-database.js";
 import createAccountSelector from "./create-account-selector.js";
 import getGuildIDFromInteraction from "./get-guild-id-from-interaction.js";
 import isGroupKeyCorrect from "./is-group-key-correct.js";
+import promptSecurityModal from "./prompt-security-modal.js";
 
 async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, action: "like" | "repost") {
 
@@ -92,26 +93,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
         ]
       });
 
-    } else if (sessionData.hashedGroupPassword) {
-
-      await interaction.createModal({
-        customID: `${action}/now/passwordModal`,
-        title: "Enter your Postoad group password",
-        components: [{
-          type: ComponentTypes.ACTION_ROW,
-          components: [
-            {
-              type: ComponentTypes.TEXT_INPUT,
-              label: "Current Postoad group password",
-              customID: `${action}/now/password`,
-              style: TextInputStyles.SHORT,
-              maxLength: 128,
-              minLength: 8,
-              required: true
-            }
-          ]
-        }]
-      });
+    } else if (await promptSecurityModal(interaction, guildID, actorDID, `${action}/now`)) {
 
       if (!actorDID) throw new Error();
 
@@ -164,7 +146,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const accountSelector = accountSelectorActionRow?.components[0];
     const options = "options" in accountSelector ? accountSelector.options : undefined;
     const actorDID = options?.find((option) => option.default)?.value;
-    const password = interaction.data.components.getTextInput(`${action}/now/password`);
+    const password = interaction.data.components.getTextInput(`${action}/now/key`);
     if (!actorDID || !password) throw new Error();
 
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
