@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "tsc && node --env-file=.env dist/app.js"
+    "build": "tsc"
   },
   "type": "module",
   "repository": {
