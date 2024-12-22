@@ -1,4 +1,5 @@
 import Command from "#utils/Command.js"
+import createAccountSelector from "#utils/create-account-selector.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
@@ -15,32 +16,13 @@ const defaultAccountSubCommand = new Command({
     if (interaction instanceof CommandInteraction) {
 
       await interaction.defer();
-      
-      const sessions = await database.collection("sessions").find({guildID}).toArray();
-      const handlePairs = await getHandlePairs(guildID);
 
       // Ask the user which accounts they want to remove.
-      const defaultSessionData = sessions.find((sessionData) => sessionData.isDefault);
+      const defaultSessionData = await database.collection("sessions").findOne({guildID, isDefault: true});
+      const accountSelector = await createAccountSelector(guildID, "accounts/default", (did) => defaultSessionData?.sub === did);
       await interaction.editOriginal({
         content: "Which account do you want Postoad to use by default?",
-        components: [
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.STRING_SELECT,
-                customID: "accounts/default/accountSelector",
-                minValues: 0,
-                options: handlePairs.map(([handle, sub]) => ({
-                  label: handle,
-                  value: sub,
-                  description: sub,
-                  default: defaultSessionData?.sub === sub
-                }))
-              }
-            ]
-          }
-        ]
+        components: [accountSelector]
       });
 
     } else {
@@ -57,7 +39,7 @@ const defaultAccountSubCommand = new Command({
         ...option,
         default: option.value === did
       }));
-      
+
       await interaction.editOriginal({
         components: [
           {

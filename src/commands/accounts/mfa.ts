@@ -1,11 +1,9 @@
 import Command from "#utils/Command.js"
-import blueskyClient from "#utils/bluesky-client.js"
+import createAccountSelector from "#utils/create-account-selector.js";
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
 import MFAConflictError from "#utils/errors/MFAConflictError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
-import NoGuildError from "#utils/errors/NoGuildError.js";
-import PostoadError from "#utils/errors/PostoadError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
@@ -52,37 +50,22 @@ const mfaSubCommand = new Command({
       // Ask the user which accounts they want to remove.
       await interaction.defer(64);
       
-      const sessions = await sessionsCollection.find({guildID}).toArray();
-      const defaultSession = sessions.find((session) => session.isDefault);
-      const handlePairs = await getHandlePairs(guildID);
+      const defaultSessionData = await database.collection("sessions").findOne({guildID, isDefault: true});
+      const accountSelector = await createAccountSelector(guildID, "accounts/mfa", (did) => defaultSessionData?.sub === did);
 
       await interaction.editOriginal({
         content: "You can require multi-factor authentication for users who want to use Postoad's features. Postoad will ask users for a code from their authenticator app before they run a command. If you no longer have access to your authenticator, consider asking someone else. If no one has access to the authenticator, use **/accounts signout** to remove the account, then re-add it back using **/accounts authorize**.",
         components: [
+          accountSelector,
           {
             type: ComponentTypes.ACTION_ROW,
             components: [
               {
-                type: ComponentTypes.STRING_SELECT,
-                customID: "accounts/mfa/accountSelector",
-                options: handlePairs.map(([handle, sub]) => ({
-                  label: handle,
-                  value: sub,
-                  description: sub,
-                  default: sub === defaultSession?.sub
-                }))
-              }
-            ]
-          },
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                disabled: !defaultSession,
+                disabled: !defaultSessionData,
                 type: ComponentTypes.BUTTON,
                 customID: "accounts/mfa/configure",
-                label: defaultSession?.encryptedTOTPSecret ? "Disable MFA" : "Configure MFA",
-                style: defaultSession?.encryptedTOTPSecret ? ButtonStyles.DANGER : ButtonStyles.SUCCESS
+                label: defaultSessionData?.encryptedTOTPSecret ? "Disable MFA" : "Configure MFA",
+                style: defaultSessionData?.encryptedTOTPSecret ? ButtonStyles.DANGER : ButtonStyles.SUCCESS
               }
             ]
           }
@@ -304,11 +287,7 @@ const mfaSubCommand = new Command({
         }
 
         // Verify that Postoad still has access to that session..
-        if (!sessionData) {
-
-          throw new NoAccessError();
-
-        }
+        if (!sessionData) throw new NoAccessError();
 
         // Ask the user to enter their decryption key if necessary.
         const { keyID } = sessionData;
