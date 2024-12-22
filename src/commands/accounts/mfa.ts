@@ -180,12 +180,12 @@ const mfaSubCommand = new Command({
 
           }
 
-          if (session.encryptedTOTPSecret) {
+          const isEnabling = configureButton.style === ButtonStyles.SUCCESS;
+          if (session.encryptedTOTPSecret && !isEnabling) {
 
-            // 
             await promptCode(interaction, true);
 
-          } else {
+          } else if (isEnabling) {
           
             // Generate a TOTP secret to display to the user.
             await interaction.deferUpdate();
@@ -231,6 +231,15 @@ const mfaSubCommand = new Command({
                 }
               ]
             });
+            
+          } else {
+
+            await interaction.deferUpdate();
+            await interaction.editOriginal({
+              content: session.encryptedTOTPSecret ? "That session already has an MFA requirement." : "That session doesn't have an MFA requirement anymore.",
+              components: [],
+              embeds: []
+            });
 
           }
 
@@ -241,7 +250,6 @@ const mfaSubCommand = new Command({
         case "accounts/mfa/verify": {
 
           await promptCode(interaction);
-
           break;
 
         }
@@ -261,7 +269,7 @@ const mfaSubCommand = new Command({
       let secretCode = originalMessage?.embeds[0]?.fields?.[0].value;
       const authenticationToken = interaction.data.components.getTextInput("accounts/mfa/code");
       const sessionData = await sessionsCollection.findOne({guildID, sub: did});
-      const existingEncryptedTOTPSecret = !secretCode && sessionData?.encryptedTOTPSecret;
+      const existingEncryptedTOTPSecret = sessionData?.encryptedTOTPSecret;
       if (!originalMessage || !did || !authenticationToken || (!secretCode && !existingEncryptedTOTPSecret)) {
 
         await interaction.editOriginal({
@@ -290,6 +298,19 @@ const mfaSubCommand = new Command({
 
       if (existingEncryptedTOTPSecret) {
 
+        if (secretCode) {
+
+          await interaction.editOriginal({
+            content: "MFA has been previously set up with this session.",
+            attachments: [],
+            embeds: [],
+            components: []
+          });
+
+          return;
+
+        }
+
         const { keyID } = sessionData;
         const key = process.env[`BLUESKY_PRIVATE_KEY_${keyID}`] as string;
         const secret = await decryptString(existingEncryptedTOTPSecret, key);
@@ -311,7 +332,7 @@ const mfaSubCommand = new Command({
 
           await interaction.editOriginal({
             content: "All done. That session no longer has an MFA requirement.",
-            files: [],
+            attachments: [],
             components: [],
             embeds: []
           });
@@ -351,6 +372,7 @@ const mfaSubCommand = new Command({
 
             await interaction.editOriginal({
               content: "Postoad is missing an important system key and cannot continue. Please report this to the bot maintainers.",
+              attachments: [],
               embeds: [],
               components: []
             });
@@ -376,7 +398,7 @@ const mfaSubCommand = new Command({
           // Let the user know.
           await interaction.editOriginal({
             content: "All done! If you no longer have access to your authenticator, you can use Postoad again by removing and re-authorizing the account.",
-            files: [],
+            attachments: [],
             components: [],
             embeds: []
           });
