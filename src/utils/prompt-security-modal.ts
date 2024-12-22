@@ -26,6 +26,7 @@ export default async function promptSecurityModal(interaction: CommandInteractio
                 customID: `${customIDPrefix}/key`,
                 style: TextInputStyles.SHORT,
                 label: "Enter your current group decryption key",
+                minLength: 8,
                 required: true
               }
             ]

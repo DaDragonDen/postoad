@@ -150,6 +150,25 @@ const encryptSubCommand = new Command({
               }]
             });
 
+            await interaction.editOriginal({
+              components: [
+                accountSelectMenuActionRow,
+                {
+                  ...securitySelectMenuActionRow,
+                  components: [
+                    {
+                      ...securitySelectMenu,
+                      disabled: true,
+                      options: securitySelectMenu.options.map((option) => ({
+                        ...option,
+                        default: option.value === goalEncryptionType
+                      }))
+                    }
+                  ]
+                }
+              ]
+            })
+
           }
 
           break;
@@ -179,7 +198,7 @@ const encryptSubCommand = new Command({
       const currentGroupKey = interaction.data.components.getTextInput("data/encrypt/currentKey");
       const newGroupKey = interaction.data.components.getTextInput("data/encrypt/newKey");
       const password = currentGroupKey ?? newGroupKey;
-      if (!selectedDID || goalEncryptionType || !password) throw new Error();
+      if (!selectedDID || !goalEncryptionType || !password) throw new Error();
 
       const sessionData = await database.collection("sessions").findOne({guildID, sub: selectedDID});
       if (!sessionData) throw new NoAccessError();
@@ -226,50 +245,43 @@ const encryptSubCommand = new Command({
       }
 
       // Save the password in the database.
-      const sessions = await database.collection("sessions").find({guildID}).toArray();
-      for (const sessionData of sessions) {
+      let systemPassword = "";
+      if (sessionData.keyID) {
 
-        let systemPassword = "";
-        if (sessionData.keyID) {
+        const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+        if (!possibleSystemPassword) throw new MissingSystemKeyError();
+        systemPassword = possibleSystemPassword;
 
-          const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
-          if (!possibleSystemPassword) throw new MissingSystemKeyError();
-          systemPassword = possibleSystemPassword;
+      }
 
-        }
+      // Decrypt the session using the password.
+      const decryptedSessionString = await decryptString(sessionData.encryptedSession, systemPassword || password);
 
-        // Decrypt the session using the password.
-        const decryptedSessionString = await decryptString(sessionData.encryptedSession, systemPassword || password);
+      // Re-encrypt it using the new password.
+      if (goalEncryptionType === "system") {
 
-        // Re-encrypt it using the new password.
-        let encryptedSession;
-        let keyData;
-        if (goalEncryptionType === "system") {
+        const keyData = getRandomKey();
+        const encryptedSession = await encryptString(decryptedSessionString, keyData.key);
+        await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
+          $set: {
+            encryptedSession,
+            keyID: keyData.keyID
+          }
+        });
 
-          keyData = getRandomKey();
-          encryptedSession = await encryptString(decryptedSessionString, keyData.key);
-          await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
-            $set: {
-              encryptedSession,
-              keyID: keyData.keyID
-            }
-          });
+      } else {
 
-        } else {
+        const encryptedSession = await encryptString(decryptedSessionString, password);
+        await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
+          $set: {
+            encryptedSession,
+          },
+          $unset: {
+            keyID: 1,
+            repostChannelIDs: 1
+          }
+        });
 
-          encryptedSession = await encryptString(decryptedSessionString, password);
-          await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
-            $set: {
-              encryptedSession,
-            },
-            $unset: {
-              keyID: 1,
-              repostChannelIDs: 1
-            }
-          });
-
-        }
-        
       }
 
       // Let the user know.
@@ -293,7 +305,7 @@ const encryptSubCommand = new Command({
                 disabled: false,
                 options: securitySelectMenu.options.map((option) => ({
                   ...option,
-                  default: option.value === currentEncryptionType
+                  default: option.value === goalEncryptionType
                 }))
               }
             ]
