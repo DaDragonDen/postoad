@@ -149,38 +149,6 @@ const encryptSubCommand = new Command({
                 ]
               }]
             });
-            
-            await interaction.editOriginal({
-              embeds: [
-                {
-                  description: "Authenticating..."
-                }
-              ],
-              components: [
-                {
-                  ...accountSelectMenuActionRow,
-                  components: [
-                    {
-                      ...accountSelectMenu,
-                      disabled: true
-                    }
-                  ]
-                },
-                {
-                  ...securitySelectMenuActionRow,
-                  components: [
-                    {
-                      ...securitySelectMenu,
-                      disabled: true,
-                      options: securitySelectMenu.options.map((option) => ({
-                        ...option,
-                        default: option.value === goalEncryptionType
-                      }))
-                    }
-                  ]
-                }
-              ]
-            });
 
           }
 

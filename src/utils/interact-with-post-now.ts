@@ -27,7 +27,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
   if (interaction instanceof CommandInteraction) {
 
     // Get the accounts that the server can access.
-    await interaction.defer();
+    await interaction.defer(64);
     const accountSelector = await createAccountSelector(guildID, `${action}/now`, (did) => did === defaultSession?.sub);
 
     // Ask the user which user they want to post as.
@@ -93,44 +93,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
         ]
       });
 
-    } else if (await promptSecurityModal(interaction, guildID, actorDID, `${action}/now`)) {
-
-      if (!actorDID) throw new Error();
-
-      await interaction.editOriginal({
-        embeds: [
-          originalMessage.embeds[0],
-          {
-            description: "Authenticating..."
-          }
-        ],
-        components: [
-          {
-            ...originalMessage.components[0],
-            components: [
-              {
-                ...accountSelector,
-                disabled: true,
-                options: accountSelector.options.map((component) => ({
-                  ...component,
-                  default: component.value === actorDID
-                }))
-              }
-            ]
-          },
-          {
-            ...originalMessage.components[1],
-            components: [
-              {
-                ...originalMessage.components[1].components[0],
-                disabled: true
-              }
-            ]
-          }
-        ]
-      });
-
-    } else {
+    } else if (!(await promptSecurityModal(interaction, guildID, actorDID, `${action}/now`))) {
 
       await interaction.deferUpdate();
       await confirmAction({interaction, guildID, actorDID});

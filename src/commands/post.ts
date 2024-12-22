@@ -276,7 +276,7 @@ const command = new Command({
 
     if (interaction instanceof CommandInteraction) {
 
-      await interaction.defer();
+      await interaction.defer(64);
       await promptUserSelection(guildID);
 
       return;
@@ -366,30 +366,7 @@ const command = new Command({
           const sessionData = await getSessionData(did);
           if (!sessionData) throw new NoAccessError();
 
-          if (await promptSecurityModal(interaction, guildID, did, "post")) {
-
-            // Let the user know that we're authenticating them.
-            // Disable the buttons so nothing breaks.
-            const originalComponent = originalResponse.components?.[0];
-            await interaction.editOriginal({
-              embeds: [
-                originalResponse.embeds[0],
-                {
-                  description: "Authenticating..."
-                }
-              ],
-              components: [
-                {
-                  ...originalComponent,
-                  components: originalComponent.components.map((component) => ({
-                    ...component,
-                    disabled: true
-                  }))
-                }
-              ]
-            })
-
-          } else {
+          if (!(await promptSecurityModal(interaction, guildID, did, "post"))) {
 
             await interaction.deferUpdate();
             await submitPost(interaction, originalResponse);
