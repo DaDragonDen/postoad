@@ -11,7 +11,7 @@ import { authenticator } from "otplib";
 import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
 import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
 
-async function interactWithBlueskyNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, customIDPrefix: string, action: "deleteFollow" | "follow" | "deleteRepost" | "like" | "deleteLike" | "repost") {
+async function interactWithBlueskyNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, customIDPrefix: string, action: "mute" | "deleteFollow" | "follow" | "deleteRepost" | "like" | "deleteLike" | "repost") {
 
   const guildID = getGuildIDFromInteraction(interaction);
 
@@ -27,7 +27,8 @@ async function interactWithBlueskyNow(interaction: CommandInteraction | Componen
       deleteLike: "💔",
       deleteRepost: "🗑️",
       follow: "➕",
-      deleteFollow: "➖"
+      deleteFollow: "➖",
+      mute: "🔕"
     };
     await interaction.editOriginal({
       content: responses[action],
