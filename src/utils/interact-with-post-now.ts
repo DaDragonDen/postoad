@@ -11,7 +11,7 @@ import { authenticator } from "otplib";
 import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
 import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
 
-async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, customIDPrefix: string, action: "like" | "deleteLike" | "repost") {
+async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, customIDPrefix: string, action: "deleteRepost" | "like" | "deleteLike" | "repost") {
 
   const guildID = getGuildIDFromInteraction(interaction);
 
@@ -24,8 +24,9 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const responses = {
       repost: "♻️",
       like: "💖",
-      deleteLike: "💔"
-    }
+      deleteLike: "💔",
+      deleteRepost: "🗑️"
+    };
     await interaction.editOriginal({
       content: responses[action],
       components: [],
