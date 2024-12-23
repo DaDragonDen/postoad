@@ -5,12 +5,13 @@ import createAccountSelector from "./create-account-selector.js";
 import getGuildIDFromInteraction from "./get-guild-id-from-interaction.js";
 import isGroupKeyCorrect from "./is-group-key-correct.js";
 import promptSecurityModal from "./prompt-security-modal.js";
+import MissingSystemKeyError from "./errors/MissingSystemKeyError.js";
 
 async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, action: "like" | "repost") {
 
   const guildID = getGuildIDFromInteraction(interaction);
 
-  async function confirmAction(options: {interaction: ModalSubmitInteraction | ComponentInteraction, guildID: string, actorDID: string, decryptionPassword?: string}) {
+  async function confirmAction(options: {interaction: ModalSubmitInteraction | ComponentInteraction, guildID: string, actorDID: string, decryptionKey?: string}) {
 
     // Repost the post.
     await interactWithPost(options, action);
@@ -109,24 +110,25 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const accountSelector = accountSelectorActionRow?.components[0];
     const options = "options" in accountSelector ? accountSelector.options : undefined;
     const actorDID = options?.find((option) => option.default)?.value;
-    const password = interaction.data.components.getTextInput(`${action}/now/key`);
-    if (!actorDID || !password) throw new Error();
-
+    let decryptionKey = interaction.data.components.getTextInput(`${action}/now/key`);
+    const totpToken = interaction.data.components.getTextInput(`${action}/now/totp`);
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
-    let decryptionPassword;
-    if (sessionData && !sessionData.keyID) {
+    if (!sessionData || !actorDID || (!decryptionKey && !totpToken)) throw new Error();
+
+    // Check if there's an encryption.
+    if (sessionData.keyID) {
+
+      // Verify that the system has the correct key.
+      const possibleKey = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+      if (!possibleKey) throw new MissingSystemKeyError();
+      decryptionKey = possibleKey;
+
+    } else {
 
       // Check if the password is correct.
-      if (!(await isGroupKeyCorrect(sessionData.encryptedSession, password))) {
+      if (!decryptionKey || !(await isGroupKeyCorrect(sessionData.encryptedSession, decryptionKey))) {
 
         await interaction.editOriginal({
-          embeds: [
-            originalMessage.embeds[0],
-            {
-              color: 15548997,
-              description: "❌ Incorrect password..."
-            }
-          ],
           components: [
             {
               ...accountSelectorActionRow,
@@ -153,11 +155,17 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
       }
 
-      decryptionPassword = password;
+    }
+
+    // Verify the TOTP if necessary.
+    if (totpToken) {
+
+
 
     }
 
-    await confirmAction({interaction, guildID, decryptionPassword, actorDID});
+    // Run the action.
+    await confirmAction({interaction, guildID, decryptionKey, actorDID});
 
   }
 
