@@ -9,13 +9,13 @@ const likeNowSubCommand = new Command({
     {
       type: ApplicationCommandOptionTypes.STRING,
       name: "link",
-      description: "What's the link of the post that you want to like?",
+      description: "What's the link of the post?",
       required: true
     }
   ],
   async action(interaction) {
     
-    return await interactWithPostNow(interaction, "like");
+    return await interactWithPostNow(interaction, "like/now", "like");
 
   }
 });
