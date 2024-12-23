@@ -13,6 +13,7 @@ import isTOTPTokenCorrect from "#utils/is-totp-token-correct.js";
 import MissingSystemKeyError from "#utils/errors/MissingSystemKeyError.js";
 import MFAIncorrectCodeError from "#utils/errors/MFAIncorrectCodeError.js";
 import IncorrectDecryptionKeyError from "#utils/errors/IncorrectDecryptionKeyError.js";
+import PostoadError from "#utils/errors/PostoadError.js";
 
 const command = new Command({
   name: "post",
@@ -127,29 +128,30 @@ const command = new Command({
       let mode: "image" | "video" = "image";
       if (attachmentSourceJumpLink && !attachmentSourceJumpLink.includes("-#")) {
 
-        // 
+        // Download each attachment.
         const attachmentSourceJumpLinkSplits = attachmentSourceJumpLink.split("/");
         const channelID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 2];
         const messageID = attachmentSourceJumpLinkSplits[attachmentSourceJumpLinkSplits.length - 1];
-        const message = await interaction.client.rest.channels.getMessage(channelID, messageID);
-        for (const attachment of message.attachments.filter(() => true)) {
+        
+        try {
 
-          const response = await fetch(attachment.url);
-          if (!response.ok) {
+          const message = await interaction.client.rest.channels.getMessage(channelID, messageID);
+          for (const attachment of message.attachments.filter(() => true)) {
 
-            
+            const response = await fetch(attachment.url);
+            if (!response.ok) throw new PostoadError(`Unable to download attachment: ${attachment.url}`);
 
-          }
+            const blob = await response.blob();
+            const altText = attachment.description;
+            blobsWithAltText.push([blob, altText]);
 
-          const blob = await response.blob();
-          const altText = attachment.description;
-          blobsWithAltText.push([blob, altText]);
-
-          if (attachment.contentType?.includes("video")) {
-
-            mode = "video";
+            mode = attachment.contentType?.includes("video") ? "video" : mode;
 
           }
+
+        } catch {
+
+          // All alone again...
 
         }
 
@@ -158,11 +160,23 @@ const command = new Command({
       // Verify that there is at least text or media.
       if (!blobsWithAltText[0] && !text) {
 
+        const originalEmbed = originalResponse.embeds?.[0];
         const originalComponent = originalResponse.components?.[0];
 
-        if (!originalComponent) return;
+        if (!originalComponent || !originalEmbed) throw new Error();
 
         await interaction.editOriginal({
+          embeds: [
+            {
+              ...originalEmbed,
+              fields: [
+                {
+                  name: "Attachment source",
+                  value: "-# Reply to this message with any media that you want to add."
+                }
+              ]
+            }
+          ],
           components: [
             {
               ...originalComponent,
