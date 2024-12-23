@@ -163,6 +163,10 @@ export default class Command {
     const authorID = (interaction.member ?? interaction.user)?.id;
     if (!authorID) return;
 
+    // Ignore everyone else that isn't the original actor.
+    const originalActorID = "message" in interaction ? interaction.message?.interactionMetadata?.user.id : undefined;
+    if (originalActorID && authorID !== originalActorID) return; 
+
     // Now check if the creator is under a cooldown.
     const executionTime = new Date().getTime();
     const remainingCooldownTime = this.rateLimitedUsers[authorID] ? (this.rateLimitedUsers[authorID][0] + this.rateLimitedUsers[authorID][1]) - executionTime : 0;
