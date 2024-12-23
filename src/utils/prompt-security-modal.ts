@@ -2,14 +2,14 @@ import { CommandInteraction, ComponentInteraction, ComponentTypes, ModalActionRo
 import database from "./mongodb-database.js";
 import NoAccessError from "./errors/NoAccessError.js";
 
-export default async function promptSecurityModal(interaction: CommandInteraction | ComponentInteraction, guildID: string, did: string, customIDPrefix: string, isSettingUpMFA?: boolean): Promise<boolean> {
+export default async function promptSecurityModal(interaction: CommandInteraction | ComponentInteraction, guildID: string, did: string, customIDPrefix: string, setupType?: "key" | "totp"): Promise<boolean> {
 
   const sessionData = await database.collection("sessions").findOne({guildID, sub: did});
   if (!sessionData) throw new NoAccessError();
 
   const isSessionEncryptedByGroupKey = !sessionData.keyID;
   const isSessionProtectedByTOTP = !!sessionData.encryptedTOTPSecret;
-  const shouldPromptSecurityModal = isSettingUpMFA || isSessionEncryptedByGroupKey || isSessionProtectedByTOTP;
+  const shouldPromptSecurityModal = !!setupType || isSessionEncryptedByGroupKey || isSessionProtectedByTOTP;
 
   if (shouldPromptSecurityModal) {
 
@@ -17,7 +17,7 @@ export default async function promptSecurityModal(interaction: CommandInteractio
       title: "Postoad security",
       customID: `${customIDPrefix}/securityModal`,
       components: [
-        ... isSessionEncryptedByGroupKey ? [
+        ... setupType === "key" || isSessionEncryptedByGroupKey ? [
           {
             type: ComponentTypes.ACTION_ROW,
             components: [
@@ -25,14 +25,15 @@ export default async function promptSecurityModal(interaction: CommandInteractio
                 type: ComponentTypes.TEXT_INPUT,
                 customID: `${customIDPrefix}/key`,
                 style: TextInputStyles.SHORT,
-                label: "Enter your current group decryption key",
+                label: `Enter ${setupType === "key" ? "a new" : "your current"} group decryption key`,
                 minLength: 8,
+                maxLength: 128,
                 required: true
               }
             ]
           } as ModalActionRow
         ] : [],
-        ... isSettingUpMFA || isSessionProtectedByTOTP ? [
+        ... setupType === "totp" || isSessionProtectedByTOTP ? [
           {
             type: ComponentTypes.ACTION_ROW,
             components: [

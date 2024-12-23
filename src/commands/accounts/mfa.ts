@@ -177,7 +177,7 @@ const mfaSubCommand = new Command({
           const did = accountSelector.type === ComponentTypes.STRING_SELECT ? accountSelector.options.find((option) => option.default)?.value : interaction.message.embeds[0]?.footer?.text;
           if (!did) throw new Error();
 
-          await promptSecurityModal(interaction, guildID, did, "accounts/mfa", true);
+          await promptSecurityModal(interaction, guildID, did, "accounts/mfa", "totp");
           break;
 
         }

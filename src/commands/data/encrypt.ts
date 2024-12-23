@@ -2,13 +2,17 @@ import Command from "#utils/Command.js"
 import createAccountSelector from "#utils/create-account-selector.js";
 import decryptString from "#utils/decrypt-string.js";
 import encryptString from "#utils/encrypt-string.js";
+import IncorrectDecryptionKeyError from "#utils/errors/IncorrectDecryptionKeyError.js";
+import MFAIncorrectCodeError from "#utils/errors/MFAIncorrectCodeError.js";
 import MissingSystemKeyError from "#utils/errors/MissingSystemKeyError.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
 import getRandomKey from "#utils/get-random-key.js";
 import isGroupKeyCorrect from "#utils/is-group-key-correct.js";
 import database from "#utils/mongodb-database.js";
-import { CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
+import promptSecurityModal from "#utils/prompt-security-modal.js";
+import { CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu } from "oceanic.js";
+import { authenticator } from "otplib";
 
 const encryptSubCommand = new Command({
   name: "encrypt",
@@ -131,24 +135,7 @@ const encryptSubCommand = new Command({
 
             // Ask the user for a current password.
             const isNewEncryption = encryptionType === "system";
-            await interaction.createModal({
-              customID: "data/encrypt/keyModal",
-              title: "Postoad security",
-              components: [{
-                type: ComponentTypes.ACTION_ROW,
-                components: [
-                  {
-                    type: ComponentTypes.TEXT_INPUT,
-                    label: `${isNewEncryption ? "Enter a new" : "Current"} decryption key`,
-                    customID: `data/encrypt/${isNewEncryption ? "new" : "current"}Key`,
-                    style: TextInputStyles.SHORT,
-                    maxLength: 128,
-                    minLength: 8,
-                    required: true
-                  }
-                ]
-              }]
-            });
+            await promptSecurityModal(interaction, guildID, did, "data/encrypt", isNewEncryption ? "key" : undefined);
 
             await interaction.editOriginal({
               components: [
@@ -195,25 +182,17 @@ const encryptSubCommand = new Command({
       const securitySelectMenuActionRow = originalComponents[1];
       const securitySelectMenu = securitySelectMenuActionRow?.components?.[0] as StringSelectMenu;
       const goalEncryptionType = securitySelectMenu.options.find((option) => option.default)?.value;
-      const currentGroupKey = interaction.data.components.getTextInput("data/encrypt/currentKey");
-      const newGroupKey = interaction.data.components.getTextInput("data/encrypt/newKey");
-      const password = currentGroupKey ?? newGroupKey;
-      if (!selectedDID || !goalEncryptionType || !password) throw new Error();
+      const groupKey = interaction.data.components.getTextInput("data/encrypt/key");
+      const totpToken = interaction.data.components.getTextInput("data/encrypt/totp");
+      if (!selectedDID || !goalEncryptionType || !groupKey) throw new Error();
 
       const sessionData = await database.collection("sessions").findOne({guildID, sub: selectedDID});
       if (!sessionData) throw new NoAccessError();
 
-      // Check if that's the correct password.
-      const currentEncryptionType = sessionData.keyID ? "system" : "group";
-      if (currentEncryptionType === "group" && (!currentGroupKey || !await isGroupKeyCorrect(sessionData.encryptedSession, currentGroupKey))) {
+      // Check if that's the correct key.
+      async function resetEncryptionTypeSelector() {
 
         await interaction.editOriginal({
-          embeds: [
-            {
-              color: 15548997,
-              description: "❌ Incorrect decryption key..."
-            }
-          ],
           components: [
             {
               ...accountSelectMenuActionRow,
@@ -240,41 +219,62 @@ const encryptSubCommand = new Command({
           ]
         });
 
-        return;
-
       }
 
-      // Save the password in the database.
-      let systemPassword = "";
-      if (sessionData.keyID) {
+      const currentEncryptionType = sessionData.keyID ? "system" : "group";
+      if (currentEncryptionType === "group" && (!groupKey || !await isGroupKeyCorrect(sessionData.encryptedSession, groupKey))) {
+
+        await resetEncryptionTypeSelector();
+        throw new IncorrectDecryptionKeyError();
+
+      }
+      
+      // Get the system key if necessary.
+      let systemKey: string | undefined;
+      let currentKey = groupKey;
+      if (currentEncryptionType === "system") {
 
         const possibleSystemPassword = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
         if (!possibleSystemPassword) throw new MissingSystemKeyError();
-        systemPassword = possibleSystemPassword;
+        systemKey = possibleSystemPassword;
+        currentKey = systemKey;
+
+      }
+
+      // Check for MFA.
+      const decryptedTOTPSecret = sessionData.encryptedTOTPSecret ? await decryptString(sessionData.encryptedTOTPSecret, currentKey) : undefined;
+      if (decryptedTOTPSecret && (!totpToken || !authenticator.verify({token: totpToken, secret: decryptedTOTPSecret}))) {
+
+        await resetEncryptionTypeSelector();
+        throw new MFAIncorrectCodeError();
 
       }
 
       // Decrypt the session using the password.
-      const decryptedSessionString = await decryptString(sessionData.encryptedSession, systemPassword || password);
+      const decryptedSessionString = await decryptString(sessionData.encryptedSession, currentKey);
 
       // Re-encrypt it using the new password.
       if (goalEncryptionType === "system") {
 
         const keyData = getRandomKey();
         const encryptedSession = await encryptString(decryptedSessionString, keyData.key);
+        const encryptedTOTPSecret = decryptedTOTPSecret ? await encryptString(decryptedTOTPSecret, keyData.key) : undefined;
         await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
           $set: {
             encryptedSession,
-            keyID: keyData.keyID
+            keyID: keyData.keyID,
+            ... encryptedTOTPSecret ? {encryptedTOTPSecret} : {}
           }
         });
 
       } else {
 
-        const encryptedSession = await encryptString(decryptedSessionString, password);
+        const encryptedSession = await encryptString(decryptedSessionString, groupKey);
+        const encryptedTOTPSecret = decryptedTOTPSecret ? await encryptString(decryptedTOTPSecret, groupKey) : undefined;
         await database.collection("sessions").updateOne({guildID, sub: sessionData.sub}, {
           $set: {
             encryptedSession,
+            ... encryptedTOTPSecret ? {encryptedTOTPSecret} : {}
           },
           $unset: {
             keyID: 1,
