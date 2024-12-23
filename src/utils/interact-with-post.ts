@@ -26,7 +26,7 @@ async function interactWithPost(source: {interaction?: ModalSubmitInteraction | 
   // Get the CID of the post.
   const session = await blueskyClient.restore(actorDID, "auto", {guildID: source.guildID, decryptionKey: source.decryptionKey});
   const agent = new Agent(session);
-  const postCreatorDID = await blueskyClient.handleResolver.resolve(postCreatorHandle);
+  const postCreatorDID = postCreatorHandle.includes("did:") ? postCreatorHandle : await blueskyClient.handleResolver.resolve(postCreatorHandle);
   if (!postCreatorDID) throw new Error();
 
   const { data: {cid} } = await agent.com.atproto.repo.getRecord({
