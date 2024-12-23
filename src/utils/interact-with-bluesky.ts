@@ -3,7 +3,7 @@ import blueskyClient from "./bluesky-client.js";
 import { Agent } from "@atproto/api";
 import { isThreadViewPost } from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
 
-async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction | ComponentInteraction, rkey?: string, targetHandle?: string, actorDID?: string, guildID: string, decryptionKey?: string}, action: "follow" | "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
+async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction | ComponentInteraction, rkey?: string, targetHandle?: string, actorDID?: string, guildID: string, decryptionKey?: string}, action: "deleteFollow" | "follow" | "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
 
   let {interaction, rkey, targetHandle, actorDID} = source;
 
