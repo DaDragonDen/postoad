@@ -1,6 +1,6 @@
 import Command from "#utils/Command.js"
 import { ApplicationCommandOptionTypes } from "oceanic.js";
-import interactWithPostNow from "#utils/interact-with-post-now.js";
+import interactWithBlueskyNow from "#utils/interact-with-bluesky-now.js";
 
 const unlikeNowCommand = new Command({
   name: "unlike",
@@ -15,7 +15,7 @@ const unlikeNowCommand = new Command({
   ],
   async action(interaction) {
     
-    return await interactWithPostNow(interaction, "unlike", "deleteLike");
+    return await interactWithBlueskyNow(interaction, "unlike", "deleteLike");
 
   }
 });
