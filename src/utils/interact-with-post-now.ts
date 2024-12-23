@@ -6,6 +6,10 @@ import getGuildIDFromInteraction from "./get-guild-id-from-interaction.js";
 import isGroupKeyCorrect from "./is-group-key-correct.js";
 import promptSecurityModal from "./prompt-security-modal.js";
 import MissingSystemKeyError from "./errors/MissingSystemKeyError.js";
+import decryptString from "./decrypt-string.js";
+import { authenticator } from "otplib";
+import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
+import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
 
 async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, action: "like" | "repost") {
 
@@ -27,15 +31,13 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
   if (interaction instanceof CommandInteraction) {
 
-    // Get the accounts that the server can access.
-    await interaction.defer(64);
-    const accountSelector = await createAccountSelector(guildID, `${action}/now`, (did) => did === defaultSession?.sub);
-
     // Ask the user which user they want to post as.
+    await interaction.defer(64);
     const postLink = interaction.data.options.getString("link");
     if (!postLink) throw new Error();
 
     const defaultSession = await database.collection("sessions").findOne({guildID, isDefault: true});
+    const accountSelector = await createAccountSelector(guildID, `${action}/now`, (did) => did === defaultSession?.sub);
 
     await interaction.editOriginal({
       content: "Which account do you want to use?",
@@ -113,7 +115,34 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     let decryptionKey = interaction.data.components.getTextInput(`${action}/now/key`);
     const totpToken = interaction.data.components.getTextInput(`${action}/now/totp`);
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
-    if (!sessionData || !actorDID || (!decryptionKey && !totpToken)) throw new Error();
+    if (!sessionData || !actorDID) throw new Error();
+
+    async function resetSelection() {
+
+      await interaction.editOriginal({
+        components: [
+          {
+            ...accountSelectorActionRow,
+            components: [
+              {
+                ...accountSelector,
+                disabled: false
+              }
+            ]
+          },
+          {
+            ...originalMessage.components[1],
+            components: [
+              {
+                ...originalMessage.components[1].components[0],
+                disabled: false
+              }
+            ]
+          }
+        ]
+      });
+
+    }
 
     // Check if there's an encryption.
     if (sessionData.keyID) {
@@ -128,39 +157,19 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
       // Check if the password is correct.
       if (!decryptionKey || !(await isGroupKeyCorrect(sessionData.encryptedSession, decryptionKey))) {
 
-        await interaction.editOriginal({
-          components: [
-            {
-              ...accountSelectorActionRow,
-              components: [
-                {
-                  ...accountSelector,
-                  disabled: false
-                }
-              ]
-            },
-            {
-              ...originalMessage.components[1],
-              components: [
-                {
-                  ...originalMessage.components[1].components[0],
-                  disabled: false
-                }
-              ]
-            }
-          ]
-        });
-
-        return;
+        await resetSelection();
+        throw new IncorrectDecryptionKeyError();
 
       }
 
     }
 
     // Verify the TOTP if necessary.
-    if (totpToken) {
+    const decryptedTOTPSecret = sessionData.encryptedTOTPSecret ? await decryptString(sessionData.encryptedTOTPSecret, decryptionKey) : undefined;
+    if (decryptedTOTPSecret && (!totpToken || !authenticator.verify({token: totpToken, secret: decryptedTOTPSecret}))) {
 
-
+      await resetSelection();
+      throw new MFAIncorrectCodeError();
 
     }
 

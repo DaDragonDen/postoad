@@ -6,9 +6,10 @@ import encryptSession from "./encrypt-string.js";
 import { NodeOAuthClient } from "./atproto-custom-deps/node-oauth-client.js";
 import getRandomKey from "./get-random-key.js";
 import { ObjectId } from "mongodb";
-import { existsSync, openSync, readFileSync, rmSync, watch, writeFileSync } from "fs";
+import { readFileSync, rmSync, watch, writeFileSync } from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
+import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
 
 // Need some keys? Use this for easy access: 
 // console.log(JSON.stringify((await JoseKey.fromKeyLike((await JoseKey.generateKeyPair()).privateKey))))
@@ -41,7 +42,7 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
       if (!sessionData) return undefined;
 
       // Decrypt the session.
-      const key = options?.decryptionPassword && typeof(options.decryptionPassword) === "string" ? options.decryptionPassword : process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+      const key = typeof(options?.decryptionKey) === "string" ? options.decryptionKey : process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
       if (!key) return undefined;
 
       // Return the decrypted session.
@@ -59,25 +60,25 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
       if (!guildID) throw new Error("Guild ID missing."); 
       const sessionData = await database.collection("sessions").findOne({guildID, sub});
       let keyID;
+      let key;
       let encryptedSession;
       if (sessionData && !sessionData.keyID) {
 
-        if (typeof(options?.encryptionKey) !== "string") {
+        if (typeof(options?.encryptionKey) !== "string") throw new IncorrectDecryptionKeyError();
 
-          throw new Error("Encryption key is missing.");
-
-        }
-
-        encryptedSession = await encryptSession(sessionJSON, options.encryptionKey);
+        key = options.encryptionKey;
 
       } else {
 
         // Select a random key for encryption.
         const keyData = getRandomKey();
-        encryptedSession = await encryptSession(sessionJSON, keyData.key);
+        key = keyData.key;
         keyID = keyData.keyID;
         
       }
+
+      encryptedSession = await encryptSession(sessionJSON, key);
+      const encryptedTOTPSecret = sessionData?.encryptedTOTPSecret ? await encryptSession(await decryptSession(sessionData.encryptedTOTPSecret, key), key) : undefined;
 
       // Save the session to the database.
       await database.collection("sessions").updateOne({
@@ -86,7 +87,8 @@ const blueskyClient = await NodeOAuthClient.fromClientId({
         $set: {
           encryptedSession,
           keyID,
-          guildID
+          guildID,
+          ... encryptedTOTPSecret ? {encryptedTOTPSecret} : {}
         }
       }, {
         upsert: true
