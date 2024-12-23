@@ -2,9 +2,9 @@ import Command from "#utils/Command.js"
 import { ApplicationCommandOptionTypes } from "oceanic.js";
 import interactWithBlueskyNow from "#utils/interact-with-bluesky-now.js";
 
-const unfollowNowCommand = new Command({
-  name: "unfollow",
-  description: "Unfollow an account on Bluesky.",
+const muteNowCommand = new Command({
+  name: "mute",
+  description: "Mute an account on Bluesky.",
   options: [
     {
       type: ApplicationCommandOptionTypes.STRING,
@@ -15,9 +15,9 @@ const unfollowNowCommand = new Command({
   ],
   async action(interaction) {
     
-    return await interactWithBlueskyNow(interaction, "unfollow", "deleteFollow");
+    return await interactWithBlueskyNow(interaction, "mute", "mute");
 
   }
 });
 
-export default unfollowNowCommand;
+export default muteNowCommand;
