@@ -2,22 +2,22 @@ import Command from "#utils/Command.js"
 import { ApplicationCommandOptionTypes } from "oceanic.js";
 import interactWithBlueskyNow from "#utils/interact-with-bluesky-now.js";
 
-const unrepostNowCommand = new Command({
-  name: "unrepost",
-  description: "Unrepost a post on Bluesky.",
+const unlikeNowCommand = new Command({
+  name: "follow",
+  description: "Follow an account on Bluesky.",
   options: [
     {
       type: ApplicationCommandOptionTypes.STRING,
-      name: "link",
-      description: "What's the link of the post?",
+      name: "handle",
+      description: "What's the name of the account?",
       required: true
     }
   ],
   async action(interaction) {
     
-    return await interactWithBlueskyNow(interaction, "unrepost", "deleteRepost");
+    return await interactWithBlueskyNow(interaction, "follow", "follow");
 
   }
 });
 
-export default unrepostNowCommand;
+export default unlikeNowCommand;

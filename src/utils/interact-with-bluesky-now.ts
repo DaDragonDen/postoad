@@ -1,5 +1,5 @@
 import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu } from "oceanic.js";
-import interactWithPost from "./interact-with-post.js";
+import interactWithBluesky from "./interact-with-bluesky.js";
 import database from "./mongodb-database.js";
 import createAccountSelector from "./create-account-selector.js";
 import getGuildIDFromInteraction from "./get-guild-id-from-interaction.js";
@@ -11,21 +11,22 @@ import { authenticator } from "otplib";
 import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
 import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
 
-async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, customIDPrefix: string, action: "deleteRepost" | "like" | "deleteLike" | "repost") {
+async function interactWithBlueskyNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, customIDPrefix: string, action: "follow" | "deleteRepost" | "like" | "deleteLike" | "repost") {
 
   const guildID = getGuildIDFromInteraction(interaction);
 
   async function confirmAction(options: {interaction: ModalSubmitInteraction | ComponentInteraction, guildID: string, actorDID: string, decryptionKey?: string}) {
 
     // Repost the post.
-    await interactWithPost(options, action);
+    await interactWithBluesky(options, action);
 
     // Let the user know that we liked the post.
     const responses = {
       repost: "♻️",
       like: "💖",
       deleteLike: "💔",
-      deleteRepost: "🗑️"
+      deleteRepost: "🗑️",
+      follow: "➕"
     };
     await interaction.editOriginal({
       content: responses[action],
@@ -40,7 +41,8 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     // Ask the user which user they want to post as.
     await interaction.defer(64);
     const postLink = interaction.data.options.getString("link");
-    if (!postLink) throw new Error();
+    const handle = interaction.data.options.getString("handle");
+    if (!postLink && !handle) throw new Error();
 
     const defaultSession = await database.collection("sessions").findOne({guildID, isDefault: true});
     const accountSelector = await createAccountSelector(guildID, customIDPrefix, (did) => did === defaultSession?.sub);
@@ -50,7 +52,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
       embeds: [
         {
           footer: {
-            text: postLink.split("?")[0]
+            text: handle! ?? postLink!.split("?")[0]
           }
         }
       ],
@@ -186,4 +188,4 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
 }
 
-export default interactWithPostNow;
+export default interactWithBlueskyNow;

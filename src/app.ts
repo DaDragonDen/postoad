@@ -2,7 +2,7 @@ import Command from "#utils/Command.js";
 import { ButtonStyles, Client, ComponentTypes, InteractionTypes } from "oceanic.js";
 import "./express-server.js";
 import database from "#utils/mongodb-database.js";
-import interactWithPost from "#utils/interact-with-post.js";
+import interactWithPost from "#utils/interact-with-bluesky.js";
 import { existsSync, mkdirSync, rmSync } from "fs";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -149,14 +149,14 @@ client.on("messageCreate", async (message) => {
   for (const sessionData of sessionDataList) {
 
     // Check if the user added a Bluesky post.
-    const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
+    const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<targetHandle>\S+)\/post\/(?<rkey>\S+)/gm;
     const matches = [...message.content.matchAll(matchingRegex)];
     for (const match of matches) {
 
       if (match.groups) {
 
-        const {rkey, postCreatorHandle} = match.groups;
-        await interactWithPost({rkey, postCreatorHandle, actorDID: sessionData.sub, guildID}, "repost");
+        const {rkey, targetHandle} = match.groups;
+        await interactWithPost({rkey, targetHandle, actorDID: sessionData.sub, guildID}, "repost");
         await message.createReaction("♻️");
 
       }
@@ -187,14 +187,14 @@ client.on("messageReactionRemove", async (uncachedMessage, reactor, reaction) =>
       for (const sessionData of sessionDataList) {
     
         // Check if the user added a Bluesky post.
-        const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<postCreatorHandle>\S+)\/post\/(?<rkey>\S+)/gm;
+        const matchingRegex = /https?:\/\/bsky.app\/profile\/(?<targetHandle>\S+)\/post\/(?<rkey>\S+)/gm;
         const matches = [...message.content.matchAll(matchingRegex)];
         for (const match of matches) {
     
           if (match.groups) {
     
-            const {rkey, postCreatorHandle} = match.groups;
-            await interactWithPost({rkey, postCreatorHandle, actorDID: sessionData.sub, guildID}, "deleteRepost");
+            const {rkey, targetHandle} = match.groups;
+            await interactWithPost({rkey, targetHandle, actorDID: sessionData.sub, guildID}, "deleteRepost");
     
           }
     
