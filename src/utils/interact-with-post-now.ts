@@ -1,4 +1,4 @@
-import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu, TextInputStyles } from "oceanic.js";
+import { ButtonStyles, CommandInteraction, ComponentInteraction, ComponentTypes, ModalSubmitInteraction, StringSelectMenu } from "oceanic.js";
 import interactWithPost from "./interact-with-post.js";
 import database from "./mongodb-database.js";
 import createAccountSelector from "./create-account-selector.js";
@@ -11,7 +11,7 @@ import { authenticator } from "otplib";
 import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
 import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
 
-async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, action: "like" | "repost") {
+async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, customIDPrefix: string, action: "like" | "deleteLike" | "repost") {
 
   const guildID = getGuildIDFromInteraction(interaction);
 
@@ -21,8 +21,13 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     await interactWithPost(options, action);
 
     // Let the user know that we liked the post.
+    const responses = {
+      repost: "♻️",
+      like: "💖",
+      deleteLike: "💔"
+    }
     await interaction.editOriginal({
-      content: action === "repost" ? "♻️" : "💖",
+      content: responses[action],
       components: [],
       embeds: []
     });
@@ -37,7 +42,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     if (!postLink) throw new Error();
 
     const defaultSession = await database.collection("sessions").findOne({guildID, isDefault: true});
-    const accountSelector = await createAccountSelector(guildID, `${action}/now`, (did) => did === defaultSession?.sub);
+    const accountSelector = await createAccountSelector(guildID, customIDPrefix, (did) => did === defaultSession?.sub);
 
     await interaction.editOriginal({
       content: "Which account do you want to use?",
@@ -55,7 +60,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
           components: [
             {
               type: ComponentTypes.BUTTON,
-              customID: `${action}/now/confirm`,
+              customID: `${customIDPrefix}/confirm`,
               label: "Continue",
               style: ButtonStyles.PRIMARY
             }
@@ -73,7 +78,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
     if (!actorDID || !sessionData) throw new Error();
     
-    if (interaction.data.customID === `${action}/now/accountSelector`) {
+    if (interaction.data.customID === `${customIDPrefix}/accountSelector`) {
 
       await interaction.deferUpdate();
       const actorDID = "values" in interaction.data ? interaction.data.values.getStrings()[0] : undefined;
@@ -96,7 +101,7 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
         ]
       });
 
-    } else if (!(await promptSecurityModal(interaction, guildID, actorDID, `${action}/now`))) {
+    } else if (!(await promptSecurityModal(interaction, guildID, actorDID, customIDPrefix))) {
 
       await interaction.deferUpdate();
       await confirmAction({interaction, guildID, actorDID});
@@ -112,8 +117,8 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const accountSelector = accountSelectorActionRow?.components[0];
     const options = "options" in accountSelector ? accountSelector.options : undefined;
     const actorDID = options?.find((option) => option.default)?.value;
-    let decryptionKey = interaction.data.components.getTextInput(`${action}/now/key`);
-    const totpToken = interaction.data.components.getTextInput(`${action}/now/totp`);
+    let decryptionKey = interaction.data.components.getTextInput(`${customIDPrefix}/key`);
+    const totpToken = interaction.data.components.getTextInput(`${customIDPrefix}/totp`);
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
     if (!sessionData || !actorDID) throw new Error();
 
