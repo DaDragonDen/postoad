@@ -5,12 +5,17 @@ import createAccountSelector from "./create-account-selector.js";
 import getGuildIDFromInteraction from "./get-guild-id-from-interaction.js";
 import isGroupKeyCorrect from "./is-group-key-correct.js";
 import promptSecurityModal from "./prompt-security-modal.js";
+import MissingSystemKeyError from "./errors/MissingSystemKeyError.js";
+import decryptString from "./decrypt-string.js";
+import { authenticator } from "otplib";
+import IncorrectDecryptionKeyError from "./errors/IncorrectDecryptionKeyError.js";
+import MFAIncorrectCodeError from "./errors/MFAIncorrectCodeError.js";
 
 async function interactWithPostNow(interaction: CommandInteraction | ComponentInteraction | ModalSubmitInteraction, action: "like" | "repost") {
 
   const guildID = getGuildIDFromInteraction(interaction);
 
-  async function confirmAction(options: {interaction: ModalSubmitInteraction | ComponentInteraction, guildID: string, actorDID: string, decryptionPassword?: string}) {
+  async function confirmAction(options: {interaction: ModalSubmitInteraction | ComponentInteraction, guildID: string, actorDID: string, decryptionKey?: string}) {
 
     // Repost the post.
     await interactWithPost(options, action);
@@ -26,15 +31,13 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
 
   if (interaction instanceof CommandInteraction) {
 
-    // Get the accounts that the server can access.
-    await interaction.defer(64);
-    const accountSelector = await createAccountSelector(guildID, `${action}/now`, (did) => did === defaultSession?.sub);
-
     // Ask the user which user they want to post as.
+    await interaction.defer(64);
     const postLink = interaction.data.options.getString("link");
     if (!postLink) throw new Error();
 
     const defaultSession = await database.collection("sessions").findOne({guildID, isDefault: true});
+    const accountSelector = await createAccountSelector(guildID, `${action}/now`, (did) => did === defaultSession?.sub);
 
     await interaction.editOriginal({
       content: "Which account do you want to use?",
@@ -109,55 +112,69 @@ async function interactWithPostNow(interaction: CommandInteraction | ComponentIn
     const accountSelector = accountSelectorActionRow?.components[0];
     const options = "options" in accountSelector ? accountSelector.options : undefined;
     const actorDID = options?.find((option) => option.default)?.value;
-    const password = interaction.data.components.getTextInput(`${action}/now/key`);
-    if (!actorDID || !password) throw new Error();
-
+    let decryptionKey = interaction.data.components.getTextInput(`${action}/now/key`);
+    const totpToken = interaction.data.components.getTextInput(`${action}/now/totp`);
     const sessionData = await database.collection("sessions").findOne({guildID, sub: actorDID});
-    let decryptionPassword;
-    if (sessionData && !sessionData.keyID) {
+    if (!sessionData || !actorDID) throw new Error();
 
-      // Check if the password is correct.
-      if (!(await isGroupKeyCorrect(sessionData.encryptedSession, password))) {
+    async function resetSelection() {
 
-        await interaction.editOriginal({
-          embeds: [
-            originalMessage.embeds[0],
-            {
-              color: 15548997,
-              description: "❌ Incorrect password..."
-            }
-          ],
-          components: [
-            {
-              ...accountSelectorActionRow,
-              components: [
-                {
-                  ...accountSelector,
-                  disabled: false
-                }
-              ]
-            },
-            {
-              ...originalMessage.components[1],
-              components: [
-                {
-                  ...originalMessage.components[1].components[0],
-                  disabled: false
-                }
-              ]
-            }
-          ]
-        });
-
-        return;
-
-      }
-
-      decryptionPassword = password;
+      await interaction.editOriginal({
+        components: [
+          {
+            ...accountSelectorActionRow,
+            components: [
+              {
+                ...accountSelector,
+                disabled: false
+              }
+            ]
+          },
+          {
+            ...originalMessage.components[1],
+            components: [
+              {
+                ...originalMessage.components[1].components[0],
+                disabled: false
+              }
+            ]
+          }
+        ]
+      });
 
     }
 
-    await confirmAction({interaction, guildID, decryptionPassword, actorDID});
+    // Check if there's an encryption.
+    if (sessionData.keyID) {
+
+      // Verify that the system has the correct key.
+      const possibleKey = process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`];
+      if (!possibleKey) throw new MissingSystemKeyError();
+      decryptionKey = possibleKey;
+
+    } else {
+
+      // Check if the password is correct.
+      if (!decryptionKey || !(await isGroupKeyCorrect(sessionData.encryptedSession, decryptionKey))) {
+
+        await resetSelection();
+        throw new IncorrectDecryptionKeyError();
+
+      }
+
+    }
+
+    // Verify the TOTP if necessary.
+    const decryptedTOTPSecret = sessionData.encryptedTOTPSecret ? await decryptString(sessionData.encryptedTOTPSecret, decryptionKey) : undefined;
+    if (decryptedTOTPSecret && (!totpToken || !authenticator.verify({token: totpToken, secret: decryptedTOTPSecret}))) {
+
+      await resetSelection();
+      throw new MFAIncorrectCodeError();
+
+    }
+
+    // Run the action.
+    await confirmAction({interaction, guildID, decryptionKey, actorDID});
 
   }
 

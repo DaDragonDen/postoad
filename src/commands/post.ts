@@ -113,14 +113,14 @@ const command = new Command({
 
     }
 
-    async function submitPost(interaction: ComponentInteraction | ModalSubmitInteraction, originalResponse: Message, decryptionPassword?: string) {
+    async function submitPost(interaction: ComponentInteraction | ModalSubmitInteraction, originalResponse: Message, decryptionKey?: string) {
 
       const originalEmbed = originalResponse?.embeds?.[0];
       const did = originalEmbed?.footer?.text;
       const text = originalEmbed?.description;
       if (!did) throw new Error();
 
-      const session = await blueskyClient.restore(did, "auto", {guildID, decryptionPassword});
+      const session = await blueskyClient.restore(did, "auto", {guildID, decryptionKey});
       const agent = new Agent(session);
       
       // Try to get images and videos from attachment sources.

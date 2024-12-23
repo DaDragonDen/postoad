@@ -3,7 +3,7 @@ import blueskyClient from "./bluesky-client.js";
 import { Agent } from "@atproto/api";
 import { isThreadViewPost } from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
 
-async function interactWithPost(source: {interaction?: ModalSubmitInteraction | ComponentInteraction, rkey?: string, postCreatorHandle?: string, actorDID?: string, guildID: string, decryptionPassword?: string}, action: "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
+async function interactWithPost(source: {interaction?: ModalSubmitInteraction | ComponentInteraction, rkey?: string, postCreatorHandle?: string, actorDID?: string, guildID: string, decryptionKey?: string}, action: "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
 
   let {interaction, rkey, postCreatorHandle, actorDID} = source;
 
@@ -24,7 +24,7 @@ async function interactWithPost(source: {interaction?: ModalSubmitInteraction | 
   if (!actorDID || !postCreatorHandle || !rkey) throw new Error();
 
   // Get the CID of the post.
-  const session = await blueskyClient.restore(actorDID, "auto", {guildID: source.guildID, decryptionPassword: source.decryptionPassword});
+  const session = await blueskyClient.restore(actorDID, "auto", {guildID: source.guildID, decryptionKey: source.decryptionKey});
   const agent = new Agent(session);
   const postCreatorDID = await blueskyClient.handleResolver.resolve(postCreatorHandle);
   if (!postCreatorDID) throw new Error();
