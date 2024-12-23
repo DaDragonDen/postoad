@@ -9,6 +9,10 @@ import createAccountSelector from "#utils/create-account-selector.js";
 import isGroupKeyCorrect from "#utils/is-group-key-correct.js";
 import NoAccessError from "#utils/errors/NoAccessError.js";
 import promptSecurityModal from "#utils/prompt-security-modal.js";
+import isTOTPTokenCorrect from "#utils/is-totp-token-correct.js";
+import MissingSystemKeyError from "#utils/errors/MissingSystemKeyError.js";
+import MFAIncorrectCodeError from "#utils/errors/MFAIncorrectCodeError.js";
+import IncorrectDecryptionKeyError from "#utils/errors/IncorrectDecryptionKeyError.js";
 
 const command = new Command({
   name: "post",
@@ -25,7 +29,7 @@ const command = new Command({
       // Ask the user which user they want to post as.
       const originalMessage = await interaction.getOriginal();
       const originalEmbed = originalMessage.embeds?.[0];
-      const accountSelector = await createAccountSelector(guildID, "post", (did) => originalEmbed.footer?.text === did);
+      const accountSelector = await createAccountSelector(guildID, "post", (did) => originalEmbed?.footer?.text === did);
       await interaction.editOriginal({
         content: "Which user do you want to post as?",
         embeds: originalEmbed ? [originalEmbed] : undefined,
@@ -48,7 +52,7 @@ const command = new Command({
 
     }
 
-    async function promptConfirmation(newPostContent: string | undefined, shouldUseEmbedDescription: boolean, didUserUseIncorrectPassword?: boolean) {
+    async function promptConfirmation(newPostContent: string | undefined, shouldUseEmbedDescription: boolean) {
       
       const originalResponse = await interaction.getOriginal();
       const originalEmbed = originalResponse?.embeds?.[0];
@@ -69,13 +73,7 @@ const command = new Command({
                 value: attachmentSources
               }
             ]
-          }, 
-          ... didUserUseIncorrectPassword ? [
-            {
-              color: 15548997,
-              description: "❌ Incorrect password..."
-            }
-          ] : []
+          }
         ],
         components: [
           {
@@ -407,16 +405,24 @@ const command = new Command({
 
           // Check if the password is correct.
           const sessionData = await getSessionData(did);
-          const password = interaction.data.components.getTextInput("post/key");
-          const isPasswordCorrect = !sessionData || !!sessionData.keyID || (password && await isGroupKeyCorrect(sessionData.encryptedSession, password));
-          if (sessionData && isPasswordCorrect) {
+          if (!sessionData) throw new NoAccessError();
+          const groupDecryptionKey = interaction.data.components.getTextInput("post/key");
+          const shouldHaveSystemDecryptionKey = !groupDecryptionKey && sessionData?.keyID;
+          const systemDecryptionKey = shouldHaveSystemDecryptionKey ? process.env[`BLUESKY_PRIVATE_KEY_${sessionData.keyID}`] : undefined;
+          if (shouldHaveSystemDecryptionKey && !systemDecryptionKey) throw new MissingSystemKeyError();
+          const totpToken = interaction.data.components.getTextInput("post/totp");
+          const isKeyCorrect = !sessionData || !!sessionData.keyID || (groupDecryptionKey && await isGroupKeyCorrect(sessionData.encryptedSession, groupDecryptionKey));
+          const decryptionKey = systemDecryptionKey ?? groupDecryptionKey;
+          const isTokenCorrect = isKeyCorrect && (!sessionData?.encryptedTOTPSecret || (totpToken && decryptionKey && await isTOTPTokenCorrect(totpToken, sessionData.encryptedTOTPSecret, decryptionKey)))
+          if (isKeyCorrect && isTokenCorrect) {
 
-            await submitPost(interaction, originalResponse, !sessionData.keyID ? password : undefined);
+            await submitPost(interaction, originalResponse, !sessionData.keyID ? groupDecryptionKey : undefined);
             
           } else {
 
             // Re-enable the components and tell the user that the password was incorrect.
-            await promptConfirmation(undefined, true, true);
+            await promptConfirmation(undefined, true);
+            throw isKeyCorrect ? new MFAIncorrectCodeError() : new IncorrectDecryptionKeyError(); 
 
           }
           
