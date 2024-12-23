@@ -1,6 +1,7 @@
 import Command from "#utils/Command.js"
 import blueskyClient from "#utils/bluesky-client.js"
-import { ApplicationCommandOptionTypes, CommandInteraction, ComponentInteraction } from "oceanic.js";
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import { ApplicationCommandOptionTypes, CommandInteraction } from "oceanic.js";
 
 const authorizeSubCommand = new Command({
   name: "authorize",
@@ -19,20 +20,12 @@ const authorizeSubCommand = new Command({
     
     if (!(interaction instanceof CommandInteraction)) {
 
-      throw new Error("Something bad happened on our end. Try again later.");
+      throw new Error();
 
     }
 
     // Verify the guild.
-    const {guildID} = interaction;
-    if (!guildID) {
-
-      await interaction.createFollowup({
-        content: "You can only run this command in servers that you manage."
-      });
-      return;
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
 
     // Ensure that a handle was provided.
     const handle = interaction.data.options.getString("handle");

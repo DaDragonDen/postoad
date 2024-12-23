@@ -1,5 +1,7 @@
 import Command from "#utils/Command.js"
-import blueskyClient from "#utils/bluesky-client.js"
+import createAccountSelector from "#utils/create-account-selector.js";
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
 import { CommandInteraction, ComponentTypes, StringSelectMenu } from "oceanic.js";
 
@@ -9,55 +11,18 @@ const defaultAccountSubCommand = new Command({
   async action(interaction) {
 
     // Get the Bluesky accounts.
-    const { guildID } = interaction;
-    if (!guildID) {
-
-      throw new Error("You must use this command in a server.");
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
 
     if (interaction instanceof CommandInteraction) {
 
       await interaction.defer();
-      
-      const sessions = await database.collection("sessions").find({guildID}).toArray();
-      const handlePairs = [];
-      for (const session of sessions) {
-
-        const {sub} = session;
-        const handle = await blueskyClient.didResolver.resolve(sub);
-        handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-      }
-
-      if (!handlePairs[0]) {
-
-        throw new Error("There are no Bluesky accounts associated with this server.")
-
-      }
 
       // Ask the user which accounts they want to remove.
-      const defaultSessionData = sessions.find((sessionData) => sessionData.isDefault);
+      const defaultSessionData = await database.collection("sessions").findOne({guildID, isDefault: true});
+      const accountSelector = await createAccountSelector(guildID, "accounts/default", (did) => defaultSessionData?.sub === did);
       await interaction.editOriginal({
         content: "Which account do you want Postoad to use by default?",
-        components: [
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.STRING_SELECT,
-                customID: "accounts/default/accountSelector",
-                minValues: 0,
-                options: handlePairs.map(([handle, sub]) => ({
-                  label: handle,
-                  value: sub,
-                  description: sub,
-                  default: defaultSessionData?.sub === sub
-                }))
-              }
-            ]
-          }
-        ]
+        components: [accountSelector]
       });
 
     } else {
@@ -67,22 +32,14 @@ const defaultAccountSubCommand = new Command({
       const accountSelectorActionList = interaction.message?.components[0];
       const accountSelector = accountSelectorActionList?.components[0] as StringSelectMenu;
       const did = "values" in interaction.data ? interaction.data.values.getStrings()[0] : [];
-      if (!accountSelectorActionList || !accountSelector) {
-
-        await interaction.editOriginal({
-          content: "Something bad happened. Please try again later.",
-          components: []
-        });
-
-        return;
-
-      }      
+      if (!accountSelectorActionList || !accountSelector) throw new Error();
 
       // Disable the component while we're editing it.
       const options = accountSelector.options.map((option) => ({
         ...option,
         default: option.value === did
       }));
+
       await interaction.editOriginal({
         components: [
           {

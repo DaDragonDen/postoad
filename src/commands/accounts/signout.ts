@@ -1,7 +1,9 @@
 import Command from "#utils/Command.js"
-import blueskyClient from "#utils/bluesky-client.js"
+import createAccountSelector from "#utils/create-account-selector.js";
+import getGuildIDFromInteraction from "#utils/get-guild-id-from-interaction.js";
+import getHandlePairs from "#utils/get-handle-pairs.js";
 import database from "#utils/mongodb-database.js";
-import { ApplicationCommandOptionTypes, CommandInteraction, ComponentInteraction, ComponentTypes } from "oceanic.js";
+import { CommandInteraction, ComponentTypes } from "oceanic.js";
 
 const signoutSubCommand = new Command({
   name: "signout",
@@ -9,53 +11,19 @@ const signoutSubCommand = new Command({
   async action(interaction) {
 
     // Get the Bluesky accounts.
-    const { guildID } = interaction;
-    if (!guildID) {
-
-      throw new Error("You must use this command in a server.");
-
-    }
+    const guildID = getGuildIDFromInteraction(interaction);
 
     if (interaction instanceof CommandInteraction) {
 
+      // Ask the user which accounts they want to remove.
       await interaction.defer();
       
-      const sessions = await database.collection("sessions").find({guildID}).toArray();
-      const handlePairs = [];
-      for (const session of sessions) {
+      const handlePairs = await getHandlePairs(guildID);
 
-        const {sub} = session;
-        const handle = await blueskyClient.didResolver.resolve(sub);
-        handlePairs.push([handle.alsoKnownAs?.[0].replace("at://", "") ?? "Unknown handle", sub])
-
-      }
-
-      if (!handlePairs[0]) {
-
-        throw new Error("There are no Bluesky accounts associated with this server.")
-
-      }
-
-      // Ask the user which accounts they want to remove.
+      const accountSelector = await createAccountSelector(guildID, "accounts/signout", undefined, {maxValues: handlePairs.length});
       await interaction.editOriginal({
         content: "Which accounts do you want to sign out of?",
-        components: [
-          {
-            type: ComponentTypes.ACTION_ROW,
-            components: [
-              {
-                type: ComponentTypes.STRING_SELECT,
-                customID: "accounts/signout/accountSelector",
-                maxValues: handlePairs.length,
-                options: handlePairs.map(([handle, sub]) => ({
-                  label: handle,
-                  value: sub,
-                  description: sub,
-                }))
-              }
-            ]
-          }
-        ]
+        components: [accountSelector]
       });
 
     } else {
@@ -63,16 +31,7 @@ const signoutSubCommand = new Command({
       await interaction.deferUpdate();
 
       const dids = "values" in interaction.data ? interaction.data.values.getStrings() : [];
-      if (!dids[0]) {
-
-        await interaction.editOriginal({
-          content: "Something bad happened. Please try again later.",
-          components: []
-        });
-
-        return;
-
-      }
+      if (!dids[0]) throw new Error();
 
       for (const did of dids) {
 
