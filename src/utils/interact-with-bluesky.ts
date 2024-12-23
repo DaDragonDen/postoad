@@ -3,11 +3,12 @@ import blueskyClient from "./bluesky-client.js";
 import { Agent } from "@atproto/api";
 import { isThreadViewPost } from "@atproto/api/dist/client/types/app/bsky/feed/defs.js";
 
-async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction | ComponentInteraction, rkey?: string, targetHandle?: string, actorDID?: string, guildID: string, decryptionKey?: string}, action: "mute" | "deleteFollow" | "follow" | "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
+async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction | ComponentInteraction, rkey?: string, targetHandle?: string, actorDID?: string, guildID: string, decryptionKey?: string}, action: "unmute" | "mute" | "deleteFollow" | "follow" | "deletePost" | "deleteLike" | "like" | "deleteRepost" | "repost") {
 
   let {interaction, rkey, targetHandle, actorDID} = source;
 
-  const isTargetAccount = action === "deleteFollow" || action === "follow" || action === "mute";
+  const accountActionTypes = ["deleteFollow", "follow", "mute", "unmute"];
+  const isTargetAccount = accountActionTypes.includes(action);
   if (interaction && !targetHandle) {
 
     // Get the rkey of the post.
