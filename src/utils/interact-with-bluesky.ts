@@ -7,6 +7,7 @@ async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction
 
   let {interaction, rkey, targetHandle, actorDID} = source;
 
+  const isTargetAccount = action === "deleteFollow" || action === "follow";
   if (interaction && !targetHandle) {
 
     // Get the rkey of the post.
@@ -14,7 +15,7 @@ async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction
     const originalEmbed = originalMessage.embeds[0];
     const value = originalEmbed?.footer?.text;
 
-    if (action === "follow") {
+    if (isTargetAccount) {
 
       targetHandle = value;
 
@@ -30,7 +31,7 @@ async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction
 
   }
 
-  if (!targetHandle || !actorDID || (action !== "follow" && !rkey)) throw new Error();
+  if (!targetHandle || !actorDID || (!isTargetAccount && !rkey)) throw new Error();
 
   // Get the CID of the post if necessary.
   const session = await blueskyClient.restore(actorDID, "auto", {guildID: source.guildID, decryptionKey: source.decryptionKey});
@@ -39,10 +40,16 @@ async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction
   let cid;
   let uri;
   if (!targetDID) throw new Error();
-  if (action !== "follow") {
+  if (action === "deleteFollow") {
+
+    const profileResponse = await agent.getProfile({actor: targetDID});
+    uri = profileResponse.data.viewer?.following;
+    if (!uri) return;
+    
+  } else if (action !== "follow") {
 
     if (!rkey) throw new Error();
-  
+
     const recordResponse = await agent.com.atproto.repo.getRecord({
       collection: "app.bsky.feed.post",
       repo: targetDID,
@@ -52,20 +59,20 @@ async function interactWithBluesky(source: {interaction?: ModalSubmitInteraction
     cid = recordResponse.data.cid;
   
     if (!cid) throw new Error();
-  
-    // Get the URI we need.
     uri = `at://${targetDID}/app.bsky.feed.post/${rkey}`;
-    if (action === "deleteLike" || action === "deleteRepost") {
-  
-      const response = await agent.getPostThread({uri});
-      if (isThreadViewPost(response.data.thread)) {
-  
-        const possibleURI = response.data.thread.post.viewer?.[action === "deleteLike" ? "like" : "repost"];
-        if (!possibleURI) return;
-        uri = possibleURI;
-  
-      }
-  
+
+  }
+
+  // Get the URI we need.
+  if (action === "deleteLike" || action === "deleteRepost") {
+
+    const response = await agent.getPostThread({uri: uri!});
+    if (isThreadViewPost(response.data.thread)) {
+
+      const possibleURI = response.data.thread.post.viewer?.[action === "deleteLike" ? "like" : "repost"];
+      if (!possibleURI) return;
+      uri = possibleURI;
+
     }
 
   }
